@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       items: [
         {
           id: `radio-sesion-${idcliente}`,
-          title: `Radio — ${cliente.nombre}`,
+          title: `Radio Carly — ${cliente.nombre}`,
           quantity: 1,
           unit_price: Number(monto),
           currency_id: "ARS",

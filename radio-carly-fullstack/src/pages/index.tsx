@@ -152,8 +152,7 @@ export default function Home() {
 
         {/* Logo / Título */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white tracking-tight">Radio Carly</h1>
-          <p className="text-gray-400 mt-1 text-sm">Sistema de alquiler de horarios</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">WOX Rosario</h1>
         </div>
 
         <div className="bg-gray-900 rounded-2xl shadow-xl p-6 space-y-5">
