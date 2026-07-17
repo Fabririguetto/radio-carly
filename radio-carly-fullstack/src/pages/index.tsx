@@ -151,7 +151,6 @@ export default function Home() {
       {/* Header */}
       <header className="px-5 pt-10 pb-4 sm:pt-14 text-center">
         <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">WOX Rosario</h1>
-        <p className="text-gray-500 mt-1 text-sm">Sistema de alquiler de horarios</p>
       </header>
 
       {/* Contenido principal */}
