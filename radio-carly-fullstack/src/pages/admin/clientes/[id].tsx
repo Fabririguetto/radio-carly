@@ -57,46 +57,61 @@ export default function ClienteDetalle() {
     cargar();
   }
 
-  if (!cliente) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><p className="text-gray-400">Cargando...</p></div>;
+  if (!cliente) return (
+    <div className="min-h-[100dvh] bg-gray-950 flex items-center justify-center">
+      <p className="text-gray-400">Cargando...</p>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-950 px-4 py-8">
-      <div className="max-w-2xl mx-auto space-y-6">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-10">
+      <div className="max-w-2xl mx-auto space-y-4">
 
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Link href="/admin/clientes" className="text-gray-400 hover:text-white transition-colors">← Volver</Link>
-          <h1 className="text-white font-bold text-2xl">{cliente.nombre}</h1>
+          <Link href="/admin/clientes" className="text-gray-400 text-sm py-2 pr-1">←</Link>
+          <div>
+            <h1 className="text-white font-bold text-xl leading-tight">{cliente.nombre}</h1>
+            <p className="text-gray-500 text-xs">DNI {cliente.dni}</p>
+          </div>
         </div>
 
         {/* Cuenta corriente */}
-        <div className="bg-gray-900 rounded-2xl p-5 grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-gray-400 text-xs">Total cobrado</p>
-            <p className="text-white font-bold text-lg">${Number(cliente.egreso).toLocaleString("es-AR")}</p>
+        <div className="bg-gray-900 rounded-2xl p-4 grid grid-cols-3 gap-3">
+          <div className="text-center">
+            <p className="text-gray-500 text-xs">Cobrado</p>
+            <p className="text-white font-bold text-base mt-0.5">${Number(cliente.egreso).toLocaleString("es-AR")}</p>
           </div>
-          <div>
-            <p className="text-gray-400 text-xs">Total pagado</p>
-            <p className="text-green-400 font-bold text-lg">${Number(cliente.ingreso).toLocaleString("es-AR")}</p>
+          <div className="text-center border-x border-gray-800">
+            <p className="text-gray-500 text-xs">Pagado</p>
+            <p className="text-green-400 font-bold text-base mt-0.5">${Number(cliente.ingreso).toLocaleString("es-AR")}</p>
           </div>
-          <div>
-            <p className="text-gray-400 text-xs">Deuda actual</p>
-            <p className={`font-bold text-lg ${Number(cliente.balance) > 0 ? "text-yellow-400" : "text-green-400"}`}>
+          <div className="text-center">
+            <p className="text-gray-500 text-xs">Deuda</p>
+            <p className={`font-bold text-base mt-0.5 ${Number(cliente.balance) > 0 ? "text-yellow-400" : "text-green-400"}`}>
               ${Number(cliente.balance).toLocaleString("es-AR")}
             </p>
           </div>
         </div>
 
-        {/* Horarios */}
-        <div className="bg-gray-900 rounded-2xl p-5 space-y-4">
+        {/* Horarios fijos */}
+        <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
           <h2 className="text-white font-semibold">Horarios fijos</h2>
 
           {horarios.length > 0 ? (
             <div className="space-y-2">
               {horarios.map((h) => (
-                <div key={h.idhorario} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-2">
-                  <span className="text-white text-sm">{DIAS[h.dia_semana]} — {h.hora_inicio.slice(0,5)} a {h.hora_fin.slice(0,5)}</span>
-                  <button onClick={() => eliminarHorario(h.idhorario)} className="text-red-400 hover:text-red-300 text-xs transition-colors">Eliminar</button>
+                <div key={h.idhorario} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
+                  <span className="text-white text-sm">
+                    <span className="font-medium">{DIAS[h.dia_semana]}</span>
+                    <span className="text-gray-400 ml-2">{h.hora_inicio.slice(0, 5)} – {h.hora_fin.slice(0, 5)}</span>
+                  </span>
+                  <button
+                    onClick={() => eliminarHorario(h.idhorario)}
+                    className="text-red-400 text-sm px-2 py-1 rounded-lg active:bg-red-900/30 transition-colors"
+                  >
+                    Eliminar
+                  </button>
                 </div>
               ))}
             </div>
@@ -104,77 +119,94 @@ export default function ClienteDetalle() {
             <p className="text-gray-500 text-sm">Sin horarios asignados.</p>
           )}
 
-          <div className="flex gap-2 flex-wrap">
-            <select value={dia} onChange={(e) => setDia(e.target.value)} className="bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none">
-              {DIAS.slice(1).map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
+          {/* Formulario agregar horario — apilado en mobile */}
+          <div className="space-y-2 pt-1">
+            <select
+              value={dia}
+              onChange={(e) => setDia(e.target.value)}
+              className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 text-sm focus:outline-none"
+            >
+              {DIAS.slice(1).map((d, i) => <option key={i + 1} value={i + 1}>{d}</option>)}
             </select>
-            <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none" />
-            <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className="bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none" />
-            <button onClick={agregarHorario} className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">Agregar</button>
+            <div className="flex gap-2">
+              <input
+                type="time"
+                value={horaInicio}
+                onChange={(e) => setHoraInicio(e.target.value)}
+                className="flex-1 bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 text-sm focus:outline-none"
+              />
+              <input
+                type="time"
+                value={horaFin}
+                onChange={(e) => setHoraFin(e.target.value)}
+                className="flex-1 bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 text-sm focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={agregarHorario}
+              className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-colors"
+            >
+              + Agregar horario
+            </button>
           </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
           {exito && <p className="text-green-400 text-sm">{exito}</p>}
         </div>
 
-        {/* Últimas sesiones */}
-        <div className="bg-gray-900 rounded-2xl p-5 space-y-3">
+        {/* Últimas sesiones — cards en mobile */}
+        <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
           <h2 className="text-white font-semibold">Últimas sesiones</h2>
           {sesiones.length === 0 ? (
             <p className="text-gray-500 text-sm">Sin sesiones registradas.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead><tr>
-                <th className="text-left text-gray-400 py-2 font-medium">Fecha</th>
-                <th className="text-left text-gray-400 py-2 font-medium">Horario</th>
-                <th className="text-left text-gray-400 py-2 font-medium">Asistencia</th>
-                <th className="text-right text-gray-400 py-2 font-medium">Monto</th>
-              </tr></thead>
-              <tbody>
-                {sesiones.map((s) => (
-                  <tr key={s.idsesion} className="border-t border-gray-800">
-                    <td className="text-white py-2">{new Date(s.fecha).toLocaleDateString("es-AR")}</td>
-                    <td className="text-gray-400 py-2">{s.hora_inicio?.slice(0,5)} - {s.hora_fin?.slice(0,5)}</td>
-                    <td className="py-2">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.asistio ? "bg-green-600/20 text-green-400" : "bg-red-600/20 text-red-400"}`}>
-                        {s.asistio ? "Asistió" : "Reserva"}
-                      </span>
-                    </td>
-                    <td className="text-right text-white py-2">${Number(s.monto).toLocaleString("es-AR")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="space-y-2">
+              {sesiones.map((s) => (
+                <div key={s.idsesion} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-white text-sm font-medium">
+                      {new Date(s.fecha).toLocaleDateString("es-AR")}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      {s.hora_inicio?.slice(0, 5)} – {s.hora_fin?.slice(0, 5)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white text-sm font-semibold">${Number(s.monto).toLocaleString("es-AR")}</p>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 inline-block ${
+                      s.asistio ? "bg-green-600/20 text-green-400" : "bg-red-600/20 text-red-400"
+                    }`}>
+                      {s.asistio ? "Asistió" : "Reserva"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
-        {/* Últimos pagos */}
-        <div className="bg-gray-900 rounded-2xl p-5 space-y-3">
+        {/* Últimos pagos — cards en mobile */}
+        <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
           <h2 className="text-white font-semibold">Últimos pagos</h2>
           {pagos.length === 0 ? (
             <p className="text-gray-500 text-sm">Sin pagos registrados.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead><tr>
-                <th className="text-left text-gray-400 py-2 font-medium">Fecha</th>
-                <th className="text-left text-gray-400 py-2 font-medium">Estado</th>
-                <th className="text-right text-gray-400 py-2 font-medium">Monto</th>
-              </tr></thead>
-              <tbody>
-                {pagos.map((p) => (
-                  <tr key={p.idpago} className="border-t border-gray-800">
-                    <td className="text-white py-2">{new Date(p.fecha).toLocaleDateString("es-AR")}</td>
-                    <td className="py-2">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        p.estado === "aprobado" ? "bg-green-600/20 text-green-400" :
-                        p.estado === "rechazado" ? "bg-red-600/20 text-red-400" :
-                        "bg-yellow-600/20 text-yellow-400"
-                      }`}>{p.estado}</span>
-                    </td>
-                    <td className="text-right text-white py-2">${Number(p.monto).toLocaleString("es-AR")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="space-y-2">
+              {pagos.map((p) => (
+                <div key={p.idpago} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-white text-sm font-medium">{new Date(p.fecha).toLocaleDateString("es-AR")}</p>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 inline-block ${
+                      p.estado === "aprobado" ? "bg-green-600/20 text-green-400" :
+                      p.estado === "rechazado" ? "bg-red-600/20 text-red-400" :
+                      "bg-yellow-600/20 text-yellow-400"
+                    }`}>
+                      {p.estado}
+                    </span>
+                  </div>
+                  <p className="text-white text-sm font-semibold">${Number(p.monto).toLocaleString("es-AR")}</p>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
