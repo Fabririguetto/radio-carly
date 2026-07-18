@@ -80,6 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: mpHeaders(access_token),
       body: JSON.stringify({
         name: cfg.nombre_negocio,
+        external_id: `STORE${collectorId}`,
         business_hours: {
           monday:    [{ open: "00:00", close: "23:59" }],
           tuesday:   [{ open: "00:00", close: "23:59" }],
@@ -114,7 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: "Caja Principal",
         external_id: `CAJA${collectorId}`,
         store_id: store.id,
-        fixed_amount: false,
+        fixed_amount: true,
       }),
     });
     const pos = await posRes.json();

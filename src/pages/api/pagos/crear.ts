@@ -32,6 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       Authorization: `Bearer ${mp.accessToken}`,
       "Content-Type": "application/json",
       "X-Idempotency-Key": randomUUID(),
+      ...(process.env.MP_PLATFORM_ID ? { "x-platform-id": process.env.MP_PLATFORM_ID } : {}),
     },
     body: JSON.stringify({
       type: "qr",
