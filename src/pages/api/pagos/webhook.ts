@@ -14,7 +14,7 @@ async function procesarOrder(orderId: string) {
   if (order.status !== "processed") return;
 
   const payment = (order.transactions?.payments ?? []).find(
-    (p: any) => p.status === "approved"
+    (p: any) => p.status === "processed"
   );
   if (!payment) return;
 

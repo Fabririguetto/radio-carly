@@ -27,9 +27,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!orderRes.ok) return res.json({ estado: pago.estado });
 
     const order = await orderRes.json();
-    console.log("MP order status:", order.status, "payments:", JSON.stringify(order.transactions?.payments));
     const payment = (order.transactions?.payments ?? []).find(
-      (p: any) => p.status === "approved"
+      (p: any) => p.status === "processed"
     );
 
     if (order.status === "processed" && payment) {
