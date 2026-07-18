@@ -17,11 +17,6 @@ export default function ClienteDetalle() {
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [horarios, setHorarios] = useState<Horario[]>([]);
-  const [dia, setDia] = useState("1");
-  const [horaInicio, setHoraInicio] = useState("08:00");
-  const [horaFin, setHoraFin] = useState("09:00");
-  const [error, setError] = useState("");
-  const [exito, setExito] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -39,17 +34,6 @@ export default function ClienteDetalle() {
     setSesiones(detalle.sesiones);
     setPagos(detalle.pagos);
     setHorarios(await resHorarios.json());
-  }
-
-  async function agregarHorario() {
-    setError(""); setExito("");
-    const res = await fetch(`/api/admin/clientes/${id}/horarios`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dia_semana: Number(dia), hora_inicio: horaInicio, hora_fin: horaFin }),
-    });
-    if (res.ok) { setExito("Horario agregado."); cargar(); }
-    else { const d = await res.json(); setError(d.error); }
   }
 
   async function eliminarHorario(idhorario: number) {
@@ -119,38 +103,13 @@ export default function ClienteDetalle() {
             <p className="text-gray-500 text-sm">Sin horarios asignados.</p>
           )}
 
-          {/* Formulario agregar horario — apilado en mobile */}
-          <div className="space-y-2 pt-1">
-            <select
-              value={dia}
-              onChange={(e) => setDia(e.target.value)}
-              className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 text-sm focus:outline-none"
-            >
-              {DIAS.slice(1).map((d, i) => <option key={i + 1} value={i + 1}>{d}</option>)}
-            </select>
-            <div className="flex gap-2">
-              <input
-                type="time"
-                value={horaInicio}
-                onChange={(e) => setHoraInicio(e.target.value)}
-                className="flex-1 bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 text-sm focus:outline-none"
-              />
-              <input
-                type="time"
-                value={horaFin}
-                onChange={(e) => setHoraFin(e.target.value)}
-                className="flex-1 bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 text-sm focus:outline-none"
-              />
-            </div>
-            <button
-              onClick={agregarHorario}
-              className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-colors"
-            >
-              + Agregar horario
-            </button>
-          </div>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          {exito && <p className="text-green-400 text-sm">{exito}</p>}
+          {/* Link al calendario para agregar */}
+          <Link
+            href={`/admin/horarios?cliente=${id}`}
+            className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-colors"
+          >
+            + Agregar en el calendario
+          </Link>
         </div>
 
         {/* Últimas sesiones — cards en mobile */}
