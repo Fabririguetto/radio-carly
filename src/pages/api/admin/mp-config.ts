@@ -6,13 +6,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "DELETE") {
     try {
       await pool.query(
-        `UPDATE config SET
-          mp_access_token     = NULL,
-          mp_refresh_token    = NULL,
-          mp_token_expires_at = NULL,
-          mp_collector_id     = NULL,
-          mp_pos_external_id  = NULL
-        WHERE id = 1`
+        `INSERT INTO config (id, mp_access_token, mp_refresh_token, mp_token_expires_at, mp_collector_id, mp_pos_external_id)
+         VALUES (1, NULL, NULL, NULL, NULL, NULL)
+         ON DUPLICATE KEY UPDATE
+           mp_access_token=NULL, mp_refresh_token=NULL, mp_token_expires_at=NULL,
+           mp_collector_id=NULL, mp_pos_external_id=NULL`
       );
       invalidateMpConfig();
       return res.json({ ok: true });
@@ -25,7 +23,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const { nombre_negocio, direccion, ciudad, provincia } = req.body;
       await pool.query(
-        "UPDATE config SET nombre_negocio = ?, direccion = ?, ciudad = ?, provincia = ? WHERE id = 1",
+        `INSERT INTO config (id, nombre_negocio, direccion, ciudad, provincia) VALUES (1, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           nombre_negocio = VALUES(nombre_negocio), direccion = VALUES(direccion),
+           ciudad = VALUES(ciudad), provincia = VALUES(provincia)`,
         [nombre_negocio ?? null, direccion ?? null, ciudad ?? null, provincia ?? null]
       );
       return res.json({ ok: true });

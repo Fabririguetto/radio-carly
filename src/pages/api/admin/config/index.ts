@@ -4,7 +4,11 @@ import pool from "@/lib/db";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     const [rows] = await pool.query("SELECT precio_hora, precio_reserva FROM config LIMIT 1");
-    return res.status(200).json((rows as any[])[0]);
+    const row = (rows as any[])[0];
+    return res.status(200).json({
+      precio_hora:    row?.precio_hora    ?? 0,
+      precio_reserva: row?.precio_reserva ?? 0,
+    });
   }
 
   if (req.method === "PUT") {
@@ -13,7 +17,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "precio_hora y precio_reserva son requeridos" });
     }
     await pool.query(
-      "UPDATE config SET precio_hora = ?, precio_reserva = ? WHERE id = 1",
+      `INSERT INTO config (id, precio_hora, precio_reserva) VALUES (1, ?, ?)
+       ON DUPLICATE KEY UPDATE precio_hora = VALUES(precio_hora), precio_reserva = VALUES(precio_reserva)`,
       [precio_hora, precio_reserva]
     );
     return res.status(200).json({ precio_hora, precio_reserva });

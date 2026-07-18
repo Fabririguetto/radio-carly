@@ -16,7 +16,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   await pool.query(
-    "UPDATE config SET nombre_negocio = ?, direccion = ?, ciudad = ?, provincia = ? WHERE id = 1",
+    `INSERT INTO config (id, nombre_negocio, direccion, ciudad, provincia) VALUES (1, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       nombre_negocio = VALUES(nombre_negocio), direccion = VALUES(direccion),
+       ciudad = VALUES(ciudad), provincia = VALUES(provincia)`,
     [nombre_negocio.trim(), direccion.trim(), ciudad.trim(), provincia.trim()]
   );
 

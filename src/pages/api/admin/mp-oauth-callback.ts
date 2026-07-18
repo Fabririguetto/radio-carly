@@ -140,13 +140,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 6. Guardar en DB
     await pool.query(
-      `UPDATE config SET
-        mp_access_token     = ?,
-        mp_refresh_token    = ?,
-        mp_collector_id     = ?,
-        mp_pos_external_id  = ?,
-        mp_token_expires_at = ?
-      WHERE id = 1`,
+      `INSERT INTO config (id, mp_access_token, mp_refresh_token, mp_collector_id, mp_pos_external_id, mp_token_expires_at)
+       VALUES (1, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         mp_access_token=VALUES(mp_access_token), mp_refresh_token=VALUES(mp_refresh_token),
+         mp_collector_id=VALUES(mp_collector_id), mp_pos_external_id=VALUES(mp_pos_external_id),
+         mp_token_expires_at=VALUES(mp_token_expires_at)`,
       [access_token, refresh_token, collectorId, posExternalId, expiresAt]
     );
 

@@ -47,7 +47,7 @@ INSERT INTO `ctacte` (`idcliente`, `ingreso`, `egreso`, `balance`) VALUES
   (5, 1000.00, 4000.00, 3000.00);
 
 -- config
--- mp_access_token y mp_refresh_token se cargan via OAuth desde el panel admin
+-- La fila id=1 se crea automáticamente la primera vez que el admin guarda precios o datos del negocio
 CREATE TABLE `config` (
   `id`                  int NOT NULL AUTO_INCREMENT,
   `precio_hora`         decimal(10,2) NOT NULL DEFAULT '5000.00',
@@ -65,8 +65,7 @@ CREATE TABLE `config` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-INSERT INTO `config` (`precio_hora`, `precio_reserva`, `nombre_negocio`, `direccion`, `ciudad`, `provincia`) VALUES
-  (1500.00, 100.00, 'Wox001', 'Pellegrini 1195', 'Rosario', 'Santa Fe');
+-- Sin datos iniciales: la fila se crea sola al guardar precios o datos del negocio desde el panel
 
 -- horarios
 -- dia_semana: 1=lunes, 2=martes, 3=miércoles, 4=jueves, 5=viernes, 6=sábado, 7=domingo
