@@ -1,15 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import pool from "@/lib/db";
-
-const mp = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! });
+import { getMpConfig } from "@/lib/mp";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { payment_id, preference_id } = req.query;
   if (!payment_id) return res.status(400).json({ error: "payment_id requerido" });
 
   try {
-    // Verificar que el pago esté aprobado en MP
+    const { accessToken } = await getMpConfig();
+    const mp = new MercadoPagoConfig({ accessToken });
     const payment = await new Payment(mp).get({ id: Number(payment_id) });
     if (payment.status !== "approved") {
       return res.json({ ok: false, status: payment.status });
