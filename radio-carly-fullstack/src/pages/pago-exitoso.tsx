@@ -5,6 +5,15 @@ export default function PagoExitoso() {
   const router = useRouter();
   const [segundos, setSegundos] = useState(5);
 
+  // Fallback: procesa el pago usando el payment_id que MP manda en la URL
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { payment_id } = router.query;
+    if (payment_id) {
+      fetch(`/api/pagos/confirmar?payment_id=${payment_id}`).catch(() => null);
+    }
+  }, [router.isReady, router.query]);
+
   useEffect(() => {
     const intervalo = setInterval(() => {
       setSegundos((s) => {

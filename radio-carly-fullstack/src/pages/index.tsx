@@ -48,8 +48,83 @@ export default function Home() {
   const [qrVencido, setQrVencido] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+
+  const dniInputRef = useRef<HTMLInputElement>(null);
+  const montoInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-focus inputs al cambiar de paso
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (paso === "dni") dniInputRef.current?.focus();
+      if (paso === "pago") montoInputRef.current?.focus();
+    }, 80);
+    return () => clearTimeout(t);
+  }, [paso]);
+
+  // Auto-seleccionar horario si hay uno solo
+  useEffect(() => {
+    if (paso === "sesion" && horarios.length === 1) {
+      setHorarioSeleccionado(horarios[0]);
+    }
+  }, [paso, horarios]);
+
+  // Teclado global para el paso de sesión
+  useEffect(() => {
+    if (paso !== "sesion" || cargando) return;
+
+    function handleKey(e: KeyboardEvent) {
+      // Ignorar teclas de modificadores
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      const key = e.key;
+
+      // Números 1-9: seleccionar horario N
+      const n = parseInt(key);
+      if (!isNaN(n) && n >= 1 && n <= horarios.length) {
+        setHorarioSeleccionado(horarios[n - 1]);
+        return;
+      }
+
+      if (key === "Enter") {
+        if (horarioSeleccionado) {
+          // Sí asistí
+          e.preventDefault();
+        } else if (horarios.length === 0) {
+          // Sin horario → ir a pagar
+          setPaso("pago");
+        }
+      }
+
+      if ((key === "0" || key === "*") && horarioSeleccionado) {
+        // No asistí
+        return;
+      }
+    }
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [paso, cargando, horarios, horarioSeleccionado]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Teclado global para confirmar asistencia (Enter/0 cuando horario ya está seleccionado)
+  useEffect(() => {
+    if (paso !== "sesion" || cargando || !horarioSeleccionado) return;
+
+    function handleKey(e: KeyboardEvent) {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        registrarSesion(true);
+      } else if (e.key === "0" || e.key === "*") {
+        e.preventDefault();
+        registrarSesion(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [paso, cargando, horarioSeleccionado]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Polling: detecta pago aprobado cada 3s
   useEffect(() => {
@@ -180,7 +255,6 @@ export default function Home() {
     }
     setCargando(true);
     setError("");
-    // Limpiar timers previos antes de generar nuevo QR
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
     setQrVencido(false);
@@ -225,7 +299,6 @@ export default function Home() {
     setPaso("dni");
   }
 
-  // Color del countdown: verde → amarillo → rojo
   const countdownColor =
     tiempoRestante > 30 ? "text-gray-400" :
     tiempoRestante > 10 ? "text-yellow-400" :
@@ -234,12 +307,10 @@ export default function Home() {
   return (
     <div className="min-h-[100dvh] bg-gray-950 flex flex-col">
 
-      {/* Header */}
       <header className="px-5 pt-10 pb-4 sm:pt-14 text-center">
         <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">WOX Rosario</h1>
       </header>
 
-      {/* Contenido principal */}
       <main className="flex-1 flex flex-col justify-start sm:justify-center px-4 pb-8 sm:pb-0 w-full max-w-md mx-auto">
         <div className="bg-gray-900 rounded-2xl shadow-xl p-5 sm:p-6 space-y-4">
 
@@ -248,6 +319,7 @@ export default function Home() {
             <div className="space-y-4">
               <h2 className="text-white font-semibold text-lg">Ingresá tu DNI</h2>
               <input
+                ref={dniInputRef}
                 type="text"
                 inputMode="numeric"
                 placeholder="Ej: 12345678"
@@ -284,7 +356,7 @@ export default function Home() {
               {horarios.length > 0 ? (
                 <div className="space-y-3">
                   <p className="text-gray-400 text-sm font-medium">Horario de hoy</p>
-                  {horarios.map((h) => (
+                  {horarios.map((h, i) => (
                     <button
                       key={h.idhorario}
                       onClick={() => setHorarioSeleccionado(h)}
@@ -294,6 +366,9 @@ export default function Home() {
                           : "border-gray-700 bg-gray-800 text-gray-300"
                       }`}
                     >
+                      {horarios.length > 1 && (
+                        <span className="text-gray-500 text-xs mr-2">[{i + 1}]</span>
+                      )}
                       <span className="font-semibold">{h.dia_nombre}</span>
                       <span className="text-gray-400 ml-2">{h.hora_inicio.slice(0, 5)} – {h.hora_fin.slice(0, 5)}</span>
                     </button>
@@ -308,14 +383,16 @@ export default function Home() {
                           disabled={cargando}
                           className="flex-1 bg-green-600 hover:bg-green-500 active:bg-green-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-base"
                         >
-                          Sí, asistí
+                          <span className="block">Sí, asistí</span>
+                          <span className="block text-green-300 text-xs font-normal mt-0.5">Enter</span>
                         </button>
                         <button
                           onClick={() => registrarSesion(false)}
                           disabled={cargando}
                           className="flex-1 bg-red-700 hover:bg-red-600 active:bg-red-800 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-base"
                         >
-                          No asistí
+                          <span className="block">No asistí</span>
+                          <span className="block text-red-300 text-xs font-normal mt-0.5">0 / *</span>
                         </button>
                       </div>
                     </div>
@@ -328,7 +405,8 @@ export default function Home() {
                     onClick={() => setPaso("pago")}
                     className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors"
                   >
-                    Ir a pagar deuda
+                    <span className="block">Ir a pagar deuda</span>
+                    <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>
                   </button>
                 </div>
               )}
@@ -363,15 +441,22 @@ export default function Home() {
               <div className="space-y-2">
                 <label className="text-gray-400 text-sm">Monto a pagar</label>
                 <input
+                  ref={montoInputRef}
                   type="number"
                   inputMode="numeric"
                   min="1"
                   value={montoPagar}
                   onChange={(e) => setMontoPagar(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !cargando && Number(montoPagar) > 0) generarQR();
+                  }}
                   className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
-                  onClick={() => setMontoPagar(String(cliente.balance))}
+                  onClick={() => {
+                    setMontoPagar(String(cliente.balance));
+                    montoInputRef.current?.focus();
+                  }}
                   className="text-blue-400 text-sm py-1"
                 >
                   Pagar total (${Number(cliente.balance).toLocaleString("es-AR")})
@@ -385,7 +470,8 @@ export default function Home() {
                 disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
                 className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg"
               >
-                {cargando ? "Generando QR..." : "Generar QR de pago"}
+                <span className="block">{cargando ? "Generando QR..." : "Generar QR de pago"}</span>
+                {!cargando && <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
               </button>
               <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
                 ← Volver
@@ -397,7 +483,6 @@ export default function Home() {
           {paso === "qr" && cliente && (
             <div className="space-y-4 text-center">
 
-              {/* Estado: pago cobrado */}
               {pagoCobrado ? (
                 <div className="py-8 space-y-4">
                   <div className="flex justify-center">
@@ -417,7 +502,6 @@ export default function Home() {
                 </div>
 
               ) : qrVencido ? (
-                /* Estado: QR vencido */
                 <div className="py-8 space-y-4">
                   <div className="flex justify-center">
                     <div className="w-20 h-20 rounded-full bg-yellow-600/20 flex items-center justify-center">
@@ -434,7 +518,6 @@ export default function Home() {
                 </div>
 
               ) : (
-                /* Estado: QR activo */
                 <>
                   <div className="bg-gray-800 rounded-xl p-4">
                     <p className="text-gray-400 text-xs uppercase tracking-wide">Pagando</p>
@@ -444,7 +527,6 @@ export default function Home() {
                     </p>
                   </div>
 
-                  {/* Selector Cámara / App MP */}
                   {qrPos && (
                     <div className="flex gap-1 bg-gray-800 rounded-xl p-1">
                       <button
