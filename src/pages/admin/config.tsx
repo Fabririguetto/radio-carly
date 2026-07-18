@@ -8,10 +8,20 @@ interface MpEstado {
   mp_collector_id: string;
   mp_pos_external_id: string;
   mp_token_hint: string | null;
+  mp_token_expires_at: string | null;
   direccion: string;
   ciudad: string;
   provincia: string;
 }
+
+const MP_ERROR_MSG: Record<string, string> = {
+  denied:    "Cancelaste la autorización en Mercado Pago.",
+  token:     "Error al intercambiar el código con Mercado Pago.",
+  test_user: "Usá credenciales de producción, no de prueba.",
+  store:     "Error al crear la sucursal en Mercado Pago.",
+  pos:       "Error al crear la caja en Mercado Pago.",
+  unknown:   "Error inesperado. Revisá los logs de Railway.",
+};
 
 export default function AdminConfig() {
   const router = useRouter();
@@ -24,7 +34,6 @@ export default function AdminConfig() {
 
   // Mercado Pago
   const [mpEstado, setMpEstado] = useState<MpEstado | null>(null);
-  const [mpToken, setMpToken] = useState("");
   const [mpNegocio, setMpNegocio] = useState("");
   const [mpDireccion, setMpDireccion] = useState("");
   const [mpCiudad, setMpCiudad] = useState("");
@@ -42,7 +51,17 @@ export default function AdminConfig() {
     });
 
     cargarEstadoMp();
-  }, []);
+
+    // Resultado del OAuth redirect
+    const { mp, reason } = router.query;
+    if (mp === "ok") {
+      setExitoMp("Mercado Pago conectado correctamente.");
+      router.replace("/admin/config", undefined, { shallow: true });
+    } else if (mp === "error") {
+      setErrorMp(MP_ERROR_MSG[String(reason)] ?? "Error al conectar con Mercado Pago.");
+      router.replace("/admin/config", undefined, { shallow: true });
+    }
+  }, [router.query]);
 
   function cargarEstadoMp() {
     fetch("/api/admin/mp-config").then((r) => r.json()).then((d: MpEstado) => {
@@ -69,19 +88,18 @@ export default function AdminConfig() {
     else setErrorPrecios("Error al guardar.");
   }
 
-  async function configurarMp() {
+  async function conectarMp() {
     setErrorMp(""); setExitoMp("");
-    if (!mpToken.trim() || !mpNegocio.trim() || !mpDireccion.trim() || !mpCiudad.trim() || !mpProvincia.trim()) {
-      setErrorMp("Completá todos los campos: nombre, dirección, ciudad, provincia y Access Token.");
+    if (!mpNegocio.trim() || !mpDireccion.trim() || !mpCiudad.trim() || !mpProvincia.trim()) {
+      setErrorMp("Completá nombre, dirección, ciudad y provincia antes de conectar.");
       return;
     }
     setMpCargando(true);
     try {
-      const res = await fetch("/api/admin/mp-config", {
+      const res = await fetch("/api/admin/mp-oauth-start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          access_token: mpToken.trim(),
           nombre_negocio: mpNegocio.trim(),
           direccion: mpDireccion.trim(),
           ciudad: mpCiudad.trim(),
@@ -90,18 +108,20 @@ export default function AdminConfig() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMp(data.error ?? "Error al configurar Mercado Pago.");
-      } else {
-        setExitoMp("Mercado Pago configurado correctamente.");
-        setMpToken("");
-        cargarEstadoMp();
+        setErrorMp(data.error ?? "Error al iniciar la conexión.");
+        setMpCargando(false);
+        return;
       }
+      window.location.href = data.url;
     } catch {
       setErrorMp("Error de red. Intentá de nuevo.");
-    } finally {
       setMpCargando(false);
     }
   }
+
+  const tokenExpira = mpEstado?.mp_token_expires_at
+    ? new Date(mpEstado.mp_token_expires_at).toLocaleDateString("es-AR")
+    : null;
 
   return (
     <div className="min-h-[100dvh] bg-gray-950 px-4 py-6">
@@ -152,14 +172,10 @@ export default function AdminConfig() {
           <div className="flex items-center justify-between">
             <h2 className="text-white font-semibold text-base">Mercado Pago</h2>
             {mpEstado && (
-              <span
-                className={`text-xs font-medium px-2 py-1 rounded-full ${
-                  mpEstado.configurado
-                    ? "bg-green-900 text-green-400"
-                    : "bg-yellow-900 text-yellow-400"
-                }`}
-              >
-                {mpEstado.configurado ? "Configurado" : "Sin configurar"}
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                mpEstado.configurado ? "bg-green-900 text-green-400" : "bg-yellow-900 text-yellow-400"
+              }`}>
+                {mpEstado.configurado ? "Conectado" : "Sin conectar"}
               </span>
             )}
           </div>
@@ -180,9 +196,11 @@ export default function AdminConfig() {
               <p className="text-gray-400">
                 POS: <span className="text-white">{mpEstado.mp_pos_external_id}</span>
               </p>
-              <p className="text-gray-400">
-                Token: <span className="text-white font-mono">{mpEstado.mp_token_hint}</span>
-              </p>
+              {tokenExpira && (
+                <p className="text-gray-400">
+                  Token vence: <span className="text-white">{tokenExpira}</span>
+                </p>
+              )}
             </div>
           )}
 
@@ -231,35 +249,23 @@ export default function AdminConfig() {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-gray-400 text-sm">Access Token de producción</label>
-            <input
-              type="password"
-              value={mpToken}
-              onChange={(e) => setMpToken(e.target.value)}
-              placeholder="APP_USR-..."
-              autoComplete="off"
-              className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-gray-500 text-xs">
-              En mercadopago.com → Tu negocio → Credenciales → Producción
-            </p>
-          </div>
-
           {errorMp && <p className="text-red-400 text-sm">{errorMp}</p>}
           {exitoMp && <p className="text-green-400 text-sm">{exitoMp}</p>}
 
           <button
-            onClick={configurarMp}
+            onClick={conectarMp}
             disabled={mpCargando}
             className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors text-base"
           >
             {mpCargando
-              ? "Configurando..."
+              ? "Redirigiendo..."
               : mpEstado?.configurado
-                ? "Reconfigurar Mercado Pago"
-                : "Configurar Mercado Pago"}
+                ? "Reconectar Mercado Pago"
+                : "Conectar con Mercado Pago"}
           </button>
+          <p className="text-gray-500 text-xs text-center">
+            Serás redirigido a Mercado Pago para autorizar la conexión
+          </p>
         </div>
 
       </div>
