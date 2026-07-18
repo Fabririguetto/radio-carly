@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "GET") {
     try {
       const [rows] = await pool.query(
-        "SELECT nombre_negocio, mp_collector_id, mp_pos_external_id, mp_access_token FROM config LIMIT 1"
+        "SELECT nombre_negocio, mp_collector_id, mp_pos_external_id, mp_access_token, direccion, ciudad, provincia FROM config LIMIT 1"
       );
       const row = (rows as any[])[0] ?? {};
       return res.json({
@@ -23,6 +23,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         mp_token_hint: row.mp_access_token
           ? `...${String(row.mp_access_token).slice(-6)}`
           : null,
+        direccion: row.direccion ?? "",
+        ciudad: row.ciudad ?? "",
+        provincia: row.provincia ?? "",
       });
     } catch (e: any) {
       console.error("mp-config GET error:", e.message);
@@ -31,16 +34,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
-    const { access_token, nombre_negocio } = req.body as {
+    const { access_token, nombre_negocio, direccion, ciudad, provincia } = req.body as {
       access_token?: string;
       nombre_negocio?: string;
+      direccion?: string;
+      ciudad?: string;
+      provincia?: string;
     };
 
-    if (!access_token?.trim() || !nombre_negocio?.trim()) {
-      return res.status(400).json({ error: "access_token y nombre_negocio son requeridos" });
+    if (!access_token?.trim() || !nombre_negocio?.trim() || !direccion?.trim() || !ciudad?.trim() || !provincia?.trim()) {
+      return res.status(400).json({ error: "Completá todos los campos: nombre, dirección, ciudad, provincia y Access Token." });
     }
 
-    // 1. Validar token y obtener collector_id
+    // 1. Geocodificar dirección con Nominatim (OpenStreetMap)
+    let lat = -34.6037;
+    let lng = -58.3816;
+    try {
+      const geoUrl = "https://nominatim.openstreetmap.org/search?" + new URLSearchParams({
+        q: `${direccion.trim()}, ${ciudad.trim()}, ${provincia.trim()}, Argentina`,
+        format: "json",
+        limit: "1",
+      });
+      const geoRes = await fetch(geoUrl, { headers: { "User-Agent": "RadioCarlyApp/1.0" } });
+      const geoData = await geoRes.json();
+      if (geoData[0]) {
+        lat = parseFloat(geoData[0].lat);
+        lng = parseFloat(geoData[0].lon);
+      }
+    } catch {
+      // fallback a Buenos Aires
+    }
+
+    // 2. Validar token y obtener collector_id
     const meRes = await fetch(`${MP_BASE}/users/me`, {
       headers: mpHeaders(access_token),
     });
@@ -56,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // 2. Crear sucursal
+    // 3. Crear sucursal
     const storeRes = await fetch(`${MP_BASE}/users/${collectorId}/stores`, {
       method: "POST",
       headers: mpHeaders(access_token),
@@ -72,12 +97,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           sunday:    [{ open: "00:00", close: "23:59" }],
         },
         location: {
-          street_name: "Sin calle",
+          street_name: direccion.trim(),
           street_number: "0",
-          city_name: "Argentina",
-          state_name: "Argentina",
-          latitude: -34.6037,
-          longitude: -58.3816,
+          city_name: ciudad.trim(),
+          state_name: provincia.trim(),
+          latitude: lat,
+          longitude: lng,
           reference: nombre_negocio.trim(),
         },
       }),
@@ -87,7 +112,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(502).json({ error: "No se pudo crear la sucursal en MP", detail: store });
     }
 
-    // 3. Crear caja POS
+    // 4. Crear caja POS
     const posExternalId = `CAJA${collectorId}`;
     const posRes = await fetch(`${MP_BASE}/pos`, {
       method: "POST",
@@ -104,15 +129,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(502).json({ error: "No se pudo crear la caja en MP", detail: pos });
     }
 
-    // 4. Guardar en DB
+    // 5. Guardar en DB
     await pool.query(
       `UPDATE config SET
         nombre_negocio     = ?,
         mp_access_token    = ?,
         mp_collector_id    = ?,
-        mp_pos_external_id = ?
+        mp_pos_external_id = ?,
+        direccion          = ?,
+        ciudad             = ?,
+        provincia          = ?
       WHERE id = 1`,
-      [nombre_negocio.trim(), access_token.trim(), collectorId, pos.external_id]
+      [nombre_negocio.trim(), access_token.trim(), collectorId, pos.external_id, direccion.trim(), ciudad.trim(), provincia.trim()]
     );
 
     invalidateMpConfig();

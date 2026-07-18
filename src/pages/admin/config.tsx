@@ -8,6 +8,9 @@ interface MpEstado {
   mp_collector_id: string;
   mp_pos_external_id: string;
   mp_token_hint: string | null;
+  direccion: string;
+  ciudad: string;
+  provincia: string;
 }
 
 export default function AdminConfig() {
@@ -23,6 +26,9 @@ export default function AdminConfig() {
   const [mpEstado, setMpEstado] = useState<MpEstado | null>(null);
   const [mpToken, setMpToken] = useState("");
   const [mpNegocio, setMpNegocio] = useState("");
+  const [mpDireccion, setMpDireccion] = useState("");
+  const [mpCiudad, setMpCiudad] = useState("");
+  const [mpProvincia, setMpProvincia] = useState("");
   const [mpCargando, setMpCargando] = useState(false);
   const [exitoMp, setExitoMp] = useState("");
   const [errorMp, setErrorMp] = useState("");
@@ -42,6 +48,9 @@ export default function AdminConfig() {
     fetch("/api/admin/mp-config").then((r) => r.json()).then((d: MpEstado) => {
       setMpEstado(d);
       if (d.nombre_negocio) setMpNegocio(d.nombre_negocio);
+      if (d.direccion) setMpDireccion(d.direccion);
+      if (d.ciudad) setMpCiudad(d.ciudad);
+      if (d.provincia) setMpProvincia(d.provincia);
     });
   }
 
@@ -62,8 +71,8 @@ export default function AdminConfig() {
 
   async function configurarMp() {
     setErrorMp(""); setExitoMp("");
-    if (!mpToken.trim() || !mpNegocio.trim()) {
-      setErrorMp("Completá el nombre del negocio y el Access Token.");
+    if (!mpToken.trim() || !mpNegocio.trim() || !mpDireccion.trim() || !mpCiudad.trim() || !mpProvincia.trim()) {
+      setErrorMp("Completá todos los campos: nombre, dirección, ciudad, provincia y Access Token.");
       return;
     }
     setMpCargando(true);
@@ -71,7 +80,13 @@ export default function AdminConfig() {
       const res = await fetch("/api/admin/mp-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: mpToken.trim(), nombre_negocio: mpNegocio.trim() }),
+        body: JSON.stringify({
+          access_token: mpToken.trim(),
+          nombre_negocio: mpNegocio.trim(),
+          direccion: mpDireccion.trim(),
+          ciudad: mpCiudad.trim(),
+          provincia: mpProvincia.trim(),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -154,6 +169,11 @@ export default function AdminConfig() {
               <p className="text-gray-400">
                 Negocio: <span className="text-white">{mpEstado.nombre_negocio}</span>
               </p>
+              {mpEstado.direccion && (
+                <p className="text-gray-400">
+                  Dirección: <span className="text-white">{mpEstado.direccion}, {mpEstado.ciudad}, {mpEstado.provincia}</span>
+                </p>
+              )}
               <p className="text-gray-400">
                 Collector ID: <span className="text-white">{mpEstado.mp_collector_id}</span>
               </p>
@@ -172,9 +192,43 @@ export default function AdminConfig() {
               type="text"
               value={mpNegocio}
               onChange={(e) => setMpNegocio(e.target.value)}
-              placeholder="Ej: Mi Estudio Rosario"
+              placeholder="Ej: Radio Carly"
               className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-gray-400 text-sm">Dirección</label>
+            <input
+              type="text"
+              value={mpDireccion}
+              onChange={(e) => setMpDireccion(e.target.value)}
+              placeholder="Ej: San Martín 1234"
+              className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-gray-400 text-sm">Ciudad</label>
+              <input
+                type="text"
+                value={mpCiudad}
+                onChange={(e) => setMpCiudad(e.target.value)}
+                placeholder="Ej: Rosario"
+                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-gray-400 text-sm">Provincia</label>
+              <input
+                type="text"
+                value={mpProvincia}
+                onChange={(e) => setMpProvincia(e.target.value)}
+                placeholder="Ej: Santa Fe"
+                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">
