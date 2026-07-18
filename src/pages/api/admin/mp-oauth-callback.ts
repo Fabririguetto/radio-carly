@@ -74,78 +74,88 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     } catch {}
 
-    // 5. Buscar o crear sucursal
+    // 5. Crear sucursal (reusar si ya existe)
     const storeExternalId = `STORE${collectorId}`;
     let storeId: string;
-    const existingStoreRes = await fetch(
-      `${MP_BASE}/users/${collectorId}/stores/search?external_id=${storeExternalId}`,
-      { headers: mpHeaders(access_token) }
-    );
-    const existingStores = await existingStoreRes.json();
-    if (existingStores.data?.results?.[0]?.id) {
-      storeId = String(existingStores.data.results[0].id);
-    } else {
-      const storeRes = await fetch(`${MP_BASE}/users/${collectorId}/stores`, {
-        method: "POST",
-        headers: mpHeaders(access_token),
-        body: JSON.stringify({
-          name: cfg.nombre_negocio,
-          external_id: storeExternalId,
-          business_hours: {
-            monday:    [{ open: "00:00", close: "23:59" }],
-            tuesday:   [{ open: "00:00", close: "23:59" }],
-            wednesday: [{ open: "00:00", close: "23:59" }],
-            thursday:  [{ open: "00:00", close: "23:59" }],
-            friday:    [{ open: "00:00", close: "23:59" }],
-            saturday:  [{ open: "00:00", close: "23:59" }],
-            sunday:    [{ open: "00:00", close: "23:59" }],
-          },
-          location: {
-            street_name: cfg.direccion,
-            street_number: "0",
-            city_name: cfg.ciudad,
-            state_name: cfg.provincia,
-            latitude: lat,
-            longitude: lng,
-            reference: cfg.nombre_negocio,
-          },
-        }),
-      });
-      const store = await storeRes.json();
-      if (!store.id) {
-        console.error("Store creation failed:", JSON.stringify(store));
+    const storeCreateRes = await fetch(`${MP_BASE}/users/${collectorId}/stores`, {
+      method: "POST",
+      headers: mpHeaders(access_token),
+      body: JSON.stringify({
+        name: cfg.nombre_negocio,
+        external_id: storeExternalId,
+        business_hours: {
+          monday:    [{ open: "00:00", close: "23:59" }],
+          tuesday:   [{ open: "00:00", close: "23:59" }],
+          wednesday: [{ open: "00:00", close: "23:59" }],
+          thursday:  [{ open: "00:00", close: "23:59" }],
+          friday:    [{ open: "00:00", close: "23:59" }],
+          saturday:  [{ open: "00:00", close: "23:59" }],
+          sunday:    [{ open: "00:00", close: "23:59" }],
+        },
+        location: {
+          street_name: cfg.direccion,
+          street_number: "0",
+          city_name: cfg.ciudad,
+          state_name: cfg.provincia,
+          latitude: lat,
+          longitude: lng,
+          reference: cfg.nombre_negocio,
+        },
+      }),
+    });
+    const storeCreate = await storeCreateRes.json();
+    if (storeCreate.id) {
+      storeId = String(storeCreate.id);
+    } else if (storeCreate.status === 400) {
+      // Ya existe — buscarlo por external_id
+      const storeSearchRes = await fetch(
+        `${MP_BASE}/users/${collectorId}/stores?external_id=${storeExternalId}&limit=1`,
+        { headers: mpHeaders(access_token) }
+      );
+      const storeSearch = await storeSearchRes.json();
+      const found = storeSearch.results?.[0] ?? storeSearch.data?.results?.[0] ?? storeSearch[0];
+      if (!found?.id) {
+        console.error("Store search failed:", JSON.stringify(storeSearch));
         return res.redirect("/admin/config?mp=error&reason=store");
       }
-      storeId = String(store.id);
+      storeId = String(found.id);
+    } else {
+      console.error("Store creation failed:", JSON.stringify(storeCreate));
+      return res.redirect("/admin/config?mp=error&reason=store");
     }
 
-    // 6. Buscar o crear caja POS
+    // 6. Crear caja POS (reusar si ya existe)
     const posExternalId = `CAJA${collectorId}`;
     let posId: string;
-    const existingPosRes = await fetch(
-      `${MP_BASE}/pos?external_id=${posExternalId}`,
-      { headers: mpHeaders(access_token) }
-    );
-    const existingPos = await existingPosRes.json();
-    if (existingPos.results?.[0]?.id) {
-      posId = String(existingPos.results[0].id);
-    } else {
-      const posRes = await fetch(`${MP_BASE}/pos`, {
-        method: "POST",
-        headers: mpHeaders(access_token),
-        body: JSON.stringify({
-          name: "Caja Principal",
-          external_id: posExternalId,
-          store_id: storeId,
-          fixed_amount: true,
-        }),
-      });
-      const pos = await posRes.json();
-      if (!pos.id) {
-        console.error("POS creation failed:", JSON.stringify(pos));
+    const posCreateRes = await fetch(`${MP_BASE}/pos`, {
+      method: "POST",
+      headers: mpHeaders(access_token),
+      body: JSON.stringify({
+        name: "Caja Principal",
+        external_id: posExternalId,
+        store_id: storeId,
+        fixed_amount: true,
+      }),
+    });
+    const posCreate = await posCreateRes.json();
+    if (posCreate.id) {
+      posId = String(posCreate.id);
+    } else if (posCreate.status === 409) {
+      // Ya existe — buscarlo por external_id
+      const posSearchRes = await fetch(
+        `${MP_BASE}/pos?external_id=${posExternalId}&limit=1`,
+        { headers: mpHeaders(access_token) }
+      );
+      const posSearch = await posSearchRes.json();
+      const foundPos = posSearch.results?.[0] ?? posSearch[0];
+      if (!foundPos?.id) {
+        console.error("POS search failed:", JSON.stringify(posSearch));
         return res.redirect("/admin/config?mp=error&reason=pos");
       }
-      posId = String(pos.id);
+      posId = String(foundPos.id);
+    } else {
+      console.error("POS creation failed:", JSON.stringify(posCreate));
+      return res.redirect("/admin/config?mp=error&reason=pos");
     }
 
     // 7. Guardar en DB
