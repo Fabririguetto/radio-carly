@@ -169,7 +169,7 @@ export default function Home() {
           qrCountdownRef.current = null;
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           setQrVencido(true);
-          setTimeout(() => reiniciar(), 2000);
+          setTimeout(() => salirDeQR(), 2000);
           return 0;
         }
         return t - 1;
@@ -285,6 +285,17 @@ export default function Home() {
     if (qrCountdownRef.current) { clearInterval(qrCountdownRef.current); qrCountdownRef.current = null; }
     setError("");
     setPaso("dni");
+  }
+
+  function salirDeQR() {
+    if (orderId && !pagoCobrado) {
+      fetch("/api/pagos/cancelar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      }).catch(() => {});
+    }
+    reiniciar();
   }
 
   const sesionColor =
@@ -551,7 +562,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
+                  <button onClick={salirDeQR} className="w-full text-gray-500 text-sm py-3 transition-colors">
                     Nueva consulta
                   </button>
                 </>

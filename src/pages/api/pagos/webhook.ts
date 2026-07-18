@@ -1,7 +1,28 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { createHmac } from "crypto";
 import pool from "@/lib/db";
 
 export const config = { api: { bodyParser: true } };
+
+function firmaValida(req: NextApiRequest): boolean {
+  const secret = process.env.MP_WEBHOOK_SECRET;
+  if (!secret) return true;
+
+  const xSignature = req.headers["x-signature"] as string;
+  const xRequestId = req.headers["x-request-id"] as string;
+  if (!xSignature || !xRequestId) return false;
+
+  const parts = Object.fromEntries(xSignature.split(",").map((p) => p.split("=")));
+  const ts = parts["ts"];
+  const v1 = parts["v1"];
+  if (!ts || !v1) return false;
+
+  const dataId = req.body?.data?.id ?? "";
+  const message = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  const hash = createHmac("sha256", secret).update(message).digest("hex");
+
+  return hash === v1;
+}
 
 async function procesarOrder(orderId: string) {
   const orderRes = await fetch(
@@ -47,6 +68,11 @@ async function procesarOrder(orderId: string) {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
+
+  if (!firmaValida(req)) {
+    console.warn("Webhook: firma inválida");
+    return res.status(200).end();
+  }
 
   const { type, data } = req.body;
 
