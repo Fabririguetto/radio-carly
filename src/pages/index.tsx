@@ -257,11 +257,18 @@ export default function Home() {
         body: JSON.stringify({ idcliente: cliente.idcliente, monto: Number(montoPagar) }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error al generar el QR.");
+        setTimeout(() => { setCargando(false); reiniciar(); }, 5000);
+        return;
+      }
       setQrPos(data.qrPos || "");
       setOrderId(data.orderId || "");
       setPaso("qr");
     } catch {
-      setError("Error al generar el QR.");
+      setError("Error de conexión al generar el QR.");
+      setTimeout(() => { setCargando(false); reiniciar(); }, 5000);
+      return;
     }
     setCargando(false);
   }

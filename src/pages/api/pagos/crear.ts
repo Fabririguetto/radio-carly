@@ -24,7 +24,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const montoStr = Number(monto).toFixed(2);
   const externalRef = `wox-${idcliente}-${Date.now()}`;
 
-  console.log("MP_WEBHOOK_URL:", process.env.MP_WEBHOOK_URL);
   const orderRes = await fetch("https://api.mercadopago.com/v1/orders", {
     method: "POST",
     headers: {
@@ -38,7 +37,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       description: `WOX Rosario — ${cliente.nombre}`,
       external_reference: externalRef,
       expiration_time: "PT2M",
-      notification_url: process.env.MP_WEBHOOK_URL,
       config: {
         qr: {
           external_pos_id: process.env.MP_POS_EXTERNAL_ID,
@@ -66,7 +64,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const order = await orderRes.json();
-  console.log("MP order response:", JSON.stringify(order).slice(0, 500));
   const qrData = order.type_response?.qr_data;
 
   if (!qrData) {
