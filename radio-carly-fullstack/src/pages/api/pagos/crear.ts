@@ -55,8 +55,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // ── QR POS dinámico (app de Mercado Pago) ────────────────────────────────────
   let qrPos: string | null = null;
+  let posDebug: unknown = null;
 
-  const collectorId  = process.env.MP_COLLECTOR_ID;
+  const collectorId   = process.env.MP_COLLECTOR_ID;
   const posExternalId = process.env.MP_POS_EXTERNAL_ID;
 
   if (collectorId && posExternalId) {
@@ -70,8 +71,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            // Usamos preference.id como external_reference para que el webhook
-            // pueda encontrar el registro en la tabla pagos por mp_preference_id
             external_reference: preference.id,
             title: `WOX Rosario — ${cliente.nombre}`,
             description: "Sesión de radio",
@@ -96,17 +95,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (posData.qr_data) {
         qrPos = await QRCode.toDataURL(posData.qr_data, { width: 300, margin: 2 });
       } else {
+        posDebug = { status: posRes.status, body: posData };
         console.error("POS QR sin qr_data:", JSON.stringify(posData));
       }
-    } catch (e) {
+    } catch (e: any) {
+      posDebug = { error: e.message };
       console.error("POS QR error:", e);
     }
+  } else {
+    posDebug = { missing: { collectorId: !collectorId, posExternalId: !posExternalId } };
   }
 
   res.status(200).json({
     preferenceId: preference.id,
     initPoint: preference.init_point,
-    qr: qrCamara,   // para escanear con cámara
-    qrPos,          // para escanear con app de MP (null si POS no configurado)
+    qr: qrCamara,
+    qrPos,
+    posDebug,   // remover una vez resuelto el QR
   });
 }
