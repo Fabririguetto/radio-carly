@@ -12,13 +12,14 @@ function mpHeaders() {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
-  try {
-    // 1. Obtener el user_id del vendedor (collector_id)
-    const userRes = await fetch(`${BASE}/v1/users/me`, { headers: mpHeaders() });
-    const user = await userRes.json();
-    if (!user.id) return res.status(500).json({ error: "No se pudo obtener user_id", detail: user });
+  // collector_id = User ID de las credenciales de MP (enviado en el body)
+  const { collector_id } = req.body as { collector_id?: string };
+  if (!collector_id) {
+    return res.status(400).json({ error: "Enviá collector_id en el body (es el User ID de tus credenciales de MP)" });
+  }
 
-    // 2. Crear sucursal (store)
+  try {
+    // 1. Crear sucursal (store)
     const storeRes = await fetch(`${BASE}/v1/stores`, {
       method: "POST",
       headers: mpHeaders(),
@@ -27,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const store = await storeRes.json();
     if (!store.id) return res.status(500).json({ error: "No se pudo crear la sucursal", detail: store });
 
-    // 3. Crear caja (POS)
+    // 2. Crear caja (POS)
     const posRes = await fetch(`${BASE}/v1/pos`, {
       method: "POST",
       headers: mpHeaders(),
@@ -43,13 +44,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.json({
       ok: true,
-      collectorId: user.id,
       storeId: store.id,
       posId: pos.id,
       posExternalId: pos.external_id,
       // Copiá estos valores en las variables de entorno de Railway:
       envVars: {
-        MP_COLLECTOR_ID: String(user.id),
+        MP_COLLECTOR_ID: collector_id,
         MP_POS_EXTERNAL_ID: pos.external_id,
       },
     });
