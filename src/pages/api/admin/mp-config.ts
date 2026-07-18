@@ -76,6 +76,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           street_number: "0",
           city_name: "Argentina",
           state_name: "Argentina",
+          latitude: -34.6037,
+          longitude: -58.3816,
           reference: nombre_negocio.trim(),
         },
       }),
