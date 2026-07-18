@@ -273,13 +273,13 @@ export default function AdminHorarios(){
           <Link href="/admin/clientes" className="text-gray-400 text-sm py-1 pr-1">←</Link>
           <h1 className="text-white font-bold text-lg">Calendario</h1>
         </div>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-2 sm:gap-3 text-sm">
           <button onClick={()=>abrirModal()}
-            className="text-white bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded-lg font-semibold text-sm">
+            className="text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-3 py-1.5 rounded-lg font-semibold text-sm">
             + Agregar
           </button>
-          <Link href="/admin/config" className="text-gray-400 hover:text-white">Configuración</Link>
-          <Link href="/admin/ayuda" className="text-gray-400 hover:text-white">Ayuda</Link>
+          <Link href="/admin/config" className="text-gray-400 hover:text-white hidden sm:inline">Configuración</Link>
+          <Link href="/admin/ayuda" className="text-gray-400 hover:text-white hidden sm:inline">Ayuda</Link>
           <button onClick={()=>{sessionStorage.removeItem("admin");router.push("/");}} className="text-red-400">Salir</button>
         </div>
       </div>
@@ -401,7 +401,7 @@ export default function AdminHorarios(){
                         const activo=clienteId===String(c.idcliente);
                         return(
                           <button key={c.idcliente}
-                            onMouseDown={e=>{e.preventDefault();setClienteId(String(c.idcliente));setBusquedaCliente(c.nombre);setDropdownAbierto(false);}}
+                            onPointerDown={e=>{e.preventDefault();setClienteId(String(c.idcliente));setBusquedaCliente(c.nombre);setDropdownAbierto(false);}}
                             className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors ${activo?"bg-gray-700":"hover:bg-gray-700/60"}`}
                           >
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${COLORES[ci].slot.split(" ")[0].replace("/85","")}`}/>
