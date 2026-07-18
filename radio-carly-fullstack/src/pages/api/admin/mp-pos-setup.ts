@@ -35,6 +35,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           saturday:  [{ open: "00:00", close: "23:59" }],
           sunday:    [{ open: "00:00", close: "23:59" }],
         },
+        location: {
+          street_name: "Rosario",
+          street_number: 1,
+          city_name: "Rosario",
+          state_name: "Santa Fe",
+          latitude: -32.9442,
+          longitude: -60.6505,
+          reference: "WOX Rosario",
+        },
       }),
     });
     const store = await storeRes.json();
