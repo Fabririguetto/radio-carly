@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
         location: {
           street_name: "Rosario",
-          street_number: 1,
+          street_number: "1",
           city_name: "Rosario",
           state_name: "Santa Fe",
           latitude: -32.9442,
