@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
 import { useRouter } from "next/router";
 
 type Cliente = {
@@ -549,7 +548,8 @@ export default function Home() {
                   {qrPos && (
                     <div className="flex justify-center">
                       <div className="bg-white p-3 rounded-2xl inline-block shadow-lg">
-                        <Image src={qrPos} alt="QR Mercado Pago" width={280} height={280} className="w-[240px] h-[240px] sm:w-[280px] sm:h-[280px]" />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={qrPos} alt="QR Mercado Pago" className="w-[240px] h-[240px] sm:w-[280px] sm:h-[280px]" />
                       </div>
                     </div>
                   )}

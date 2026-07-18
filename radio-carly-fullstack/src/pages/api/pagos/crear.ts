@@ -95,9 +95,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const posData = await posRes.json();
       if (posData.qr_data) {
         qrPos = await QRCode.toDataURL(posData.qr_data, { width: 300, margin: 2 });
+      } else {
+        console.error("POS QR sin qr_data:", JSON.stringify(posData));
       }
     } catch (e) {
-      console.error("POS QR error (no crítico):", e);
+      console.error("POS QR error:", e);
     }
   }
 
