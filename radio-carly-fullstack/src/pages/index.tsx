@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 
@@ -27,6 +27,8 @@ type Horario = {
 
 type Paso = "dni" | "sesion" | "pago" | "qr";
 
+const QR_TTL = 60;
+
 export default function Home() {
   const router = useRouter();
   const [paso, setPaso] = useState<Paso>("dni");
@@ -38,10 +40,70 @@ export default function Home() {
   const [montoPagar, setMontoPagar] = useState("");
   const [qrUrl, setQrUrl] = useState("");
   const [qrPos, setQrPos] = useState("");
-  const [qrTipo, setQrTipo] = useState<"camara"|"app">("camara");
+  const [qrTipo, setQrTipo] = useState<"camara" | "app">("camara");
   const [initPoint, setInitPoint] = useState("");
+  const [preferenceId, setPreferenceId] = useState("");
+  const [pagoCobrado, setPagoCobrado] = useState(false);
+  const [tiempoRestante, setTiempoRestante] = useState(QR_TTL);
+  const [qrVencido, setQrVencido] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Polling: detecta pago aprobado cada 3s
+  useEffect(() => {
+    if (paso !== "qr" || !preferenceId || pagoCobrado || qrVencido) return;
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/pagos/estado?preferenceId=${preferenceId}`);
+        if (!res.ok) return;
+        const { estado } = await res.json();
+        if (estado === "aprobado") {
+          clearInterval(pollingRef.current!);
+          pollingRef.current = null;
+          clearInterval(countdownRef.current!);
+          countdownRef.current = null;
+          setPagoCobrado(true);
+          setTimeout(() => reiniciar(), 3000);
+        }
+      } catch {
+        // network errors during polling are silent
+      }
+    }, 3000);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [paso, preferenceId, pagoCobrado, qrVencido]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Countdown: 60 segundos de vida del QR
+  useEffect(() => {
+    if (paso !== "qr" || pagoCobrado || qrVencido) return;
+
+    setTiempoRestante(QR_TTL);
+    countdownRef.current = setInterval(() => {
+      setTiempoRestante((t) => {
+        if (t <= 1) {
+          clearInterval(countdownRef.current!);
+          countdownRef.current = null;
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+          setQrVencido(true);
+          setTimeout(() => reiniciar(), 2000);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, [paso, preferenceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function buscarCliente() {
     if (!dni.trim()) return;
@@ -118,6 +180,11 @@ export default function Home() {
     }
     setCargando(true);
     setError("");
+    // Limpiar timers previos antes de generar nuevo QR
+    if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    setQrVencido(false);
+    setPagoCobrado(false);
     try {
       const res = await fetch("/api/pagos/crear", {
         method: "POST",
@@ -129,6 +196,7 @@ export default function Home() {
       setQrPos(data.qrPos || "");
       setQrTipo("camara");
       setInitPoint(data.initPoint);
+      setPreferenceId(data.preferenceId || "");
       setPaso("qr");
     } catch {
       setError("Error al generar el QR.");
@@ -147,9 +215,21 @@ export default function Home() {
     setQrPos("");
     setQrTipo("camara");
     setInitPoint("");
+    setPreferenceId("");
+    setPagoCobrado(false);
+    setQrVencido(false);
+    setTiempoRestante(QR_TTL);
+    if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
     setError("");
     setPaso("dni");
   }
+
+  // Color del countdown: verde → amarillo → rojo
+  const countdownColor =
+    tiempoRestante > 30 ? "text-gray-400" :
+    tiempoRestante > 10 ? "text-yellow-400" :
+    "text-red-400";
 
   return (
     <div className="min-h-[100dvh] bg-gray-950 flex flex-col">
@@ -316,64 +396,111 @@ export default function Home() {
           {/* PASO 4: Mostrar QR */}
           {paso === "qr" && cliente && (
             <div className="space-y-4 text-center">
-              <div className="bg-gray-800 rounded-xl p-4">
-                <p className="text-gray-400 text-xs uppercase tracking-wide">Pagando</p>
-                <p className="text-white font-bold text-xl mt-0.5">{cliente.nombre}</p>
-                <p className="text-green-400 font-bold text-3xl mt-1">
-                  ${Number(montoPagar).toLocaleString("es-AR")}
-                </p>
-              </div>
 
-              {/* Selector Cámara / App MP (solo visible si el POS está configurado) */}
-              {qrPos && (
-                <div className="flex gap-1 bg-gray-800 rounded-xl p-1">
-                  <button
-                    onClick={() => setQrTipo("camara")}
-                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${qrTipo === "camara" ? "bg-gray-600 text-white" : "text-gray-400"}`}
-                  >
-                    Cámara
-                  </button>
-                  <button
-                    onClick={() => setQrTipo("app")}
-                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${qrTipo === "app" ? "bg-blue-600 text-white" : "text-gray-400"}`}
-                  >
-                    App MP
-                  </button>
-                </div>
-              )}
-
-              <p className="text-gray-400 text-sm">
-                {qrPos && qrTipo === "app"
-                  ? "Escaneá con la app de Mercado Pago"
-                  : "Escaneá con la cámara de tu teléfono"}
-              </p>
-
-              {qrUrl && (
-                <div className="flex justify-center">
-                  <div className="bg-white p-3 rounded-2xl inline-block shadow-lg">
-                    <Image
-                      src={qrTipo === "app" && qrPos ? qrPos : qrUrl}
-                      alt="QR Mercado Pago"
-                      width={280}
-                      height={280}
-                      className="w-[240px] h-[240px] sm:w-[280px] sm:h-[280px]"
-                    />
+              {/* Estado: pago cobrado */}
+              {pagoCobrado ? (
+                <div className="py-8 space-y-4">
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 rounded-full bg-green-600/20 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
                   </div>
+                  <div>
+                    <p className="text-white font-bold text-2xl">¡Pago recibido!</p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      ${Number(montoPagar).toLocaleString("es-AR")} · {cliente.nombre}
+                    </p>
+                  </div>
+                  <p className="text-gray-500 text-sm">Volviendo al inicio...</p>
                 </div>
+
+              ) : qrVencido ? (
+                /* Estado: QR vencido */
+                <div className="py-8 space-y-4">
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 rounded-full bg-yellow-600/20 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-xl">QR vencido</p>
+                    <p className="text-gray-400 text-sm mt-1">El código expiró.</p>
+                  </div>
+                  <p className="text-gray-500 text-sm">Volviendo al inicio...</p>
+                </div>
+
+              ) : (
+                /* Estado: QR activo */
+                <>
+                  <div className="bg-gray-800 rounded-xl p-4">
+                    <p className="text-gray-400 text-xs uppercase tracking-wide">Pagando</p>
+                    <p className="text-white font-bold text-xl mt-0.5">{cliente.nombre}</p>
+                    <p className="text-green-400 font-bold text-3xl mt-1">
+                      ${Number(montoPagar).toLocaleString("es-AR")}
+                    </p>
+                  </div>
+
+                  {/* Selector Cámara / App MP */}
+                  {qrPos && (
+                    <div className="flex gap-1 bg-gray-800 rounded-xl p-1">
+                      <button
+                        onClick={() => setQrTipo("camara")}
+                        className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${qrTipo === "camara" ? "bg-gray-600 text-white" : "text-gray-400"}`}
+                      >
+                        Cámara
+                      </button>
+                      <button
+                        onClick={() => setQrTipo("app")}
+                        className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${qrTipo === "app" ? "bg-blue-600 text-white" : "text-gray-400"}`}
+                      >
+                        App MP
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-gray-400 text-sm">
+                      {qrPos && qrTipo === "app"
+                        ? "Escaneá con la app de Mercado Pago"
+                        : "Escaneá con la cámara de tu teléfono"}
+                    </p>
+                    <p className={`text-sm font-mono font-semibold tabular-nums ${countdownColor}`}>
+                      {String(Math.floor(tiempoRestante / 60)).padStart(2, "0")}:{String(tiempoRestante % 60).padStart(2, "0")}
+                    </p>
+                  </div>
+
+                  {qrUrl && (
+                    <div className="flex justify-center">
+                      <div className="bg-white p-3 rounded-2xl inline-block shadow-lg">
+                        <Image
+                          src={qrTipo === "app" && qrPos ? qrPos : qrUrl}
+                          alt="QR Mercado Pago"
+                          width={280}
+                          height={280}
+                          className="w-[240px] h-[240px] sm:w-[280px] sm:h-[280px]"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <a
+                    href={initPoint}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full bg-gray-800 hover:bg-gray-700 active:bg-gray-900 text-white font-semibold py-4 rounded-xl transition-colors text-center"
+                  >
+                    Abrir en Mercado Pago
+                  </a>
+
+                  <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
+                    Nueva consulta
+                  </button>
+                </>
               )}
-
-              <a
-                href={initPoint}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full bg-gray-800 hover:bg-gray-700 active:bg-gray-900 text-white font-semibold py-4 rounded-xl transition-colors text-center"
-              >
-                Abrir en Mercado Pago
-              </a>
-
-              <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
-                Nueva consulta
-              </button>
             </div>
           )}
 

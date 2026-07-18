@@ -1,6 +1,23 @@
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 
 export default function PagoFallido() {
+  const router = useRouter();
+  const [segundos, setSegundos] = useState(5);
+
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      setSegundos((s) => {
+        if (s <= 1) {
+          clearInterval(intervalo);
+          router.replace("/");
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalo);
+  }, [router]);
+
   return (
     <div className="min-h-[100dvh] bg-gray-950 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6 text-center">
@@ -15,12 +32,15 @@ export default function PagoFallido() {
           <h1 className="text-white font-bold text-2xl">Pago no completado</h1>
           <p className="text-gray-400 text-sm mt-2">Hubo un problema con el pago. Podés intentarlo de nuevo.</p>
         </div>
-        <Link
-          href="/"
+        <p className="text-gray-500 text-sm">
+          Volviendo al inicio en {segundos}s...
+        </p>
+        <button
+          onClick={() => router.replace("/")}
           className="block w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors"
         >
           Volver al inicio
-        </Link>
+        </button>
       </div>
     </div>
   );
