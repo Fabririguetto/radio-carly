@@ -1,11 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createHmac } from "crypto";
 import pool from "@/lib/db";
+import { getMpConfig } from "@/lib/mp";
 
 export const config = { api: { bodyParser: true } };
 
-function firmaValida(req: NextApiRequest): boolean {
-  const secret = process.env.MP_WEBHOOK_SECRET;
+async function firmaValida(req: NextApiRequest): Promise<boolean> {
+  const mp = await getMpConfig();
+  const secret = mp.webhookSecret;
   if (!secret) return true;
 
   const xSignature = req.headers["x-signature"] as string;
@@ -25,9 +27,10 @@ function firmaValida(req: NextApiRequest): boolean {
 }
 
 async function procesarOrder(orderId: string) {
+  const mp = await getMpConfig();
   const orderRes = await fetch(
     `https://api.mercadopago.com/v1/orders/${orderId}`,
-    { headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` } }
+    { headers: { Authorization: `Bearer ${mp.accessToken}` } }
   );
   if (!orderRes.ok) return;
 
@@ -69,7 +72,7 @@ async function procesarOrder(orderId: string) {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
-  if (!firmaValida(req)) {
+  if (!await firmaValida(req)) {
     console.warn("Webhook: firma inválida");
     return res.status(200).end();
   }

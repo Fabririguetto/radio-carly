@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { randomUUID } from "crypto";
+import { getMpConfig } from "@/lib/mp";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
@@ -8,12 +9,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!orderId) return res.status(400).json({ error: "orderId requerido" });
 
   try {
+    const mp = await getMpConfig();
     const cancelRes = await fetch(
       `https://api.mercadopago.com/v1/orders/${orderId}/cancel`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+          Authorization: `Bearer ${mp.accessToken}`,
           "Content-Type": "application/json",
           "X-Idempotency-Key": randomUUID(),
         },

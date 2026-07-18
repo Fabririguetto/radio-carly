@@ -58,9 +58,14 @@ INSERT INTO `ctacte` (`idcliente`, `ingreso`, `egreso`, `balance`) VALUES (1, 0.
 -- config  (precios configurables por el admin)
 -- -------------------------------------------
 CREATE TABLE `config` (
-  `id`             int NOT NULL AUTO_INCREMENT,
-  `precio_hora`    decimal(10,2) NOT NULL DEFAULT '5000.00',
-  `precio_reserva` decimal(10,2) NOT NULL DEFAULT '2000.00',
+  `id`                  int NOT NULL AUTO_INCREMENT,
+  `precio_hora`         decimal(10,2) NOT NULL DEFAULT '5000.00',
+  `precio_reserva`      decimal(10,2) NOT NULL DEFAULT '2000.00',
+  `nombre_negocio`      varchar(100) DEFAULT NULL,
+  `mp_access_token`     varchar(250) DEFAULT NULL,
+  `mp_collector_id`     varchar(50)  DEFAULT NULL,
+  `mp_pos_external_id`  varchar(50)  DEFAULT NULL,
+  `mp_webhook_secret`   varchar(250) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

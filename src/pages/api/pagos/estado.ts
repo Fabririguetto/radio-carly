@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import pool from "@/lib/db";
+import { getMpConfig } from "@/lib/mp";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).end();
@@ -20,9 +21,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Consultar MP directamente
   try {
+    const mp = await getMpConfig();
     const orderRes = await fetch(
       `https://api.mercadopago.com/v1/orders/${orderId}`,
-      { headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` } }
+      { headers: { Authorization: `Bearer ${mp.accessToken}` } }
     );
     if (!orderRes.ok) return res.json({ estado: pago.estado });
 

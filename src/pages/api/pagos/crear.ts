@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import QRCode from "qrcode";
 import { randomUUID } from "crypto";
 import pool from "@/lib/db";
+import { getMpConfig } from "@/lib/mp";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
@@ -23,23 +24,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const montoStr = Number(monto).toFixed(2);
   const externalRef = `wox-${idcliente}-${Date.now()}`;
+  const mp = await getMpConfig();
 
   const orderRes = await fetch("https://api.mercadopago.com/v1/orders", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${mp.accessToken}`,
       "Content-Type": "application/json",
       "X-Idempotency-Key": randomUUID(),
     },
     body: JSON.stringify({
       type: "qr",
       total_amount: montoStr,
-      description: `WOX Rosario — ${cliente.nombre}`,
+      description: `${mp.nombreNegocio} — ${cliente.nombre}`,
       external_reference: externalRef,
       expiration_time: "PT2M",
       config: {
         qr: {
-          external_pos_id: process.env.MP_POS_EXTERNAL_ID,
+          external_pos_id: mp.posExternalId,
           mode: "dynamic",
         },
       },
@@ -48,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       items: [
         {
-          title: `Sesión — ${cliente.nombre}`,
+          title: `Sesión — ${cliente.nombre} (${mp.nombreNegocio})`,
           unit_price: montoStr,
           quantity: 1,
           unit_measure: "unit",
