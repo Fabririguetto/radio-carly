@@ -27,7 +27,7 @@ type Horario = {
 
 type Paso = "dni" | "sesion" | "pago" | "qr";
 
-const QR_TTL = 60;
+const TTL = 60;
 
 export default function Home() {
   const router = useRouter();
@@ -42,15 +42,23 @@ export default function Home() {
   const [initPoint, setInitPoint] = useState("");
   const [preferenceId, setPreferenceId] = useState("");
   const [pagoCobrado, setPagoCobrado] = useState(false);
-  const [tiempoRestante, setTiempoRestante] = useState(QR_TTL);
+
+  // Countdown para pasos sesion/pago
+  const [tiempoSesion, setTiempoSesion] = useState(TTL);
+  const [sesionExpirada, setSesionExpirada] = useState(false);
+  const sesionCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Countdown del QR
+  const [tiempoQR, setTiempoQR] = useState(TTL);
   const [qrVencido, setQrVencido] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
   const dniInputRef = useRef<HTMLInputElement>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Auto-focus inputs al cambiar de paso
   useEffect(() => {
@@ -68,36 +76,45 @@ export default function Home() {
     }
   }, [paso, horarios]);
 
+  // Countdown pasos sesion/pago — reinicia cada vez que se entra al paso
+  useEffect(() => {
+    if (paso !== "sesion" && paso !== "pago") return;
+
+    setTiempoSesion(TTL);
+    setSesionExpirada(false);
+
+    sesionCountdownRef.current = setInterval(() => {
+      setTiempoSesion((t) => {
+        if (t <= 1) {
+          clearInterval(sesionCountdownRef.current!);
+          sesionCountdownRef.current = null;
+          setSesionExpirada(true);
+          setTimeout(() => reiniciar(), 2000);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (sesionCountdownRef.current) clearInterval(sesionCountdownRef.current);
+    };
+  }, [paso]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Teclado global para el paso de sesión
   useEffect(() => {
     if (paso !== "sesion" || cargando) return;
 
     function handleKey(e: KeyboardEvent) {
-      // Ignorar teclas de modificadores
       if (e.ctrlKey || e.altKey || e.metaKey) return;
-
       const key = e.key;
-
-      // Números 1-9: seleccionar horario N
       const n = parseInt(key);
       if (!isNaN(n) && n >= 1 && n <= horarios.length) {
         setHorarioSeleccionado(horarios[n - 1]);
         return;
       }
-
-      if (key === "Enter") {
-        if (horarioSeleccionado) {
-          // Sí asistí
-          e.preventDefault();
-        } else if (horarios.length === 0) {
-          // Sin horario → ir a pagar
-          setPaso("pago");
-        }
-      }
-
-      if ((key === "0" || key === "*") && horarioSeleccionado) {
-        // No asistí
-        return;
+      if (key === "Enter" && !horarioSeleccionado && horarios.length === 0) {
+        setPaso("pago");
       }
     }
 
@@ -105,19 +122,14 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [paso, cargando, horarios, horarioSeleccionado]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Teclado global para confirmar asistencia (Enter/0 cuando horario ya está seleccionado)
+  // Enter/0 confirma asistencia cuando horario está seleccionado
   useEffect(() => {
     if (paso !== "sesion" || cargando || !horarioSeleccionado) return;
 
     function handleKey(e: KeyboardEvent) {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
-      if (e.key === "Enter") {
-        e.preventDefault();
-        registrarSesion(true);
-      } else if (e.key === "0" || e.key === "*") {
-        e.preventDefault();
-        registrarSesion(false);
-      }
+      if (e.key === "Enter") { e.preventDefault(); registrarSesion(true); }
+      else if (e.key === "0" || e.key === "*") { e.preventDefault(); registrarSesion(false); }
     }
 
     window.addEventListener("keydown", handleKey);
@@ -136,35 +148,28 @@ export default function Home() {
         if (estado === "aprobado") {
           clearInterval(pollingRef.current!);
           pollingRef.current = null;
-          clearInterval(countdownRef.current!);
-          countdownRef.current = null;
+          clearInterval(qrCountdownRef.current!);
+          qrCountdownRef.current = null;
           setPagoCobrado(true);
           setTimeout(() => reiniciar(), 3000);
         }
-      } catch {
-        // network errors during polling are silent
-      }
+      } catch { /* silent */ }
     }, 3000);
 
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [paso, preferenceId, pagoCobrado, qrVencido]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Countdown: 60 segundos de vida del QR
+  // Countdown QR: 60s
   useEffect(() => {
     if (paso !== "qr" || pagoCobrado || qrVencido) return;
 
-    setTiempoRestante(QR_TTL);
-    countdownRef.current = setInterval(() => {
-      setTiempoRestante((t) => {
+    setTiempoQR(TTL);
+    qrCountdownRef.current = setInterval(() => {
+      setTiempoQR((t) => {
         if (t <= 1) {
-          clearInterval(countdownRef.current!);
-          countdownRef.current = null;
-          if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-          }
+          clearInterval(qrCountdownRef.current!);
+          qrCountdownRef.current = null;
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           setQrVencido(true);
           setTimeout(() => reiniciar(), 2000);
           return 0;
@@ -173,9 +178,7 @@ export default function Home() {
       });
     }, 1000);
 
-    return () => {
-      if (countdownRef.current) clearInterval(countdownRef.current);
-    };
+    return () => { if (qrCountdownRef.current) clearInterval(qrCountdownRef.current); };
   }, [paso, preferenceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function buscarCliente() {
@@ -202,10 +205,8 @@ export default function Home() {
       }
       const data: Cliente = await res.json();
       setCliente(data);
-
       const resSesion = await fetch(`/api/sesiones/hoy?idcliente=${data.idcliente}`);
       const dataSesion = await resSesion.json();
-
       if (dataSesion.sesion) {
         setSesion(dataSesion.sesion);
         setMontoPagar(String(data.balance + dataSesion.sesion.monto));
@@ -228,11 +229,7 @@ export default function Home() {
       const res = await fetch("/api/sesiones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idcliente: cliente.idcliente,
-          idhorario: horarioSeleccionado.idhorario,
-          asistio,
-        }),
+        body: JSON.stringify({ idcliente: cliente.idcliente, idhorario: horarioSeleccionado.idhorario, asistio }),
       });
       const data = await res.json();
       const nuevoBalance = Number(cliente.balance) + Number(data.monto);
@@ -247,14 +244,12 @@ export default function Home() {
   }
 
   async function generarQR() {
-    if (!cliente || !montoPagar || Number(montoPagar) <= 0) {
-      setError("Ingresá un monto válido.");
-      return;
-    }
+    if (!cliente || !montoPagar || Number(montoPagar) <= 0) { setError("Ingresá un monto válido."); return; }
     setCargando(true);
     setError("");
+    if (sesionCountdownRef.current) { clearInterval(sesionCountdownRef.current); sesionCountdownRef.current = null; }
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    if (qrCountdownRef.current) { clearInterval(qrCountdownRef.current); qrCountdownRef.current = null; }
     setQrVencido(false);
     setPagoCobrado(false);
     try {
@@ -286,17 +281,41 @@ export default function Home() {
     setPreferenceId("");
     setPagoCobrado(false);
     setQrVencido(false);
-    setTiempoRestante(QR_TTL);
+    setTiempoQR(TTL);
+    setSesionExpirada(false);
+    setTiempoSesion(TTL);
+    if (sesionCountdownRef.current) { clearInterval(sesionCountdownRef.current); sesionCountdownRef.current = null; }
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    if (qrCountdownRef.current) { clearInterval(qrCountdownRef.current); qrCountdownRef.current = null; }
     setError("");
     setPaso("dni");
   }
 
-  const countdownColor =
-    tiempoRestante > 30 ? "text-gray-400" :
-    tiempoRestante > 10 ? "text-yellow-400" :
-    "text-red-400";
+  const sesionColor =
+    tiempoSesion > 30 ? "text-gray-500" :
+    tiempoSesion > 10 ? "text-yellow-400" : "text-red-400";
+
+  const qrColor =
+    tiempoQR > 30 ? "text-gray-400" :
+    tiempoQR > 10 ? "text-yellow-400" : "text-red-400";
+
+  const fmtTime = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  // Pantalla de expiración (sesion/pago)
+  const ExpiryScreen = () => (
+    <div className="py-10 text-center space-y-4">
+      <div className="flex justify-center">
+        <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
+          <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+      <p className="text-white font-bold text-xl">Sesión expirada</p>
+      <p className="text-gray-500 text-sm">Volviendo al inicio...</p>
+    </div>
+  );
 
   return (
     <div className="min-h-[100dvh] bg-gray-950 flex flex-col">
@@ -308,7 +327,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col justify-start sm:justify-center px-4 pb-8 sm:pb-0 w-full max-w-md mx-auto">
         <div className="bg-gray-900 rounded-2xl shadow-xl p-5 sm:p-6 space-y-4">
 
-          {/* PASO 1: Ingresar DNI */}
+          {/* PASO 1: DNI */}
           {paso === "dni" && (
             <div className="space-y-4">
               <h2 className="text-white font-semibold text-lg">Ingresá tu DNI</h2>
@@ -333,150 +352,158 @@ export default function Home() {
             </div>
           )}
 
-          {/* PASO 2: Registrar sesión */}
+          {/* PASO 2: Sesión */}
           {paso === "sesion" && cliente && (
-            <div className="space-y-4">
-              <div className="bg-gray-800 rounded-xl p-4">
-                <p className="text-gray-400 text-xs uppercase tracking-wide">Cliente</p>
-                <p className="text-white font-bold text-2xl mt-0.5">{cliente.nombre}</p>
-                <div className="mt-3 pt-3 border-t border-gray-700">
-                  <p className="text-gray-400 text-xs uppercase tracking-wide">Deuda actual</p>
-                  <p className="text-yellow-400 font-bold text-3xl mt-0.5">
-                    ${Number(cliente.balance).toLocaleString("es-AR")}
-                  </p>
-                </div>
-              </div>
-
-              {horarios.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-gray-400 text-sm font-medium">Horario de hoy</p>
-                  {horarios.map((h, i) => (
-                    <button
-                      key={h.idhorario}
-                      onClick={() => setHorarioSeleccionado(h)}
-                      className={`w-full text-left px-4 py-4 rounded-xl border transition-colors ${
-                        horarioSeleccionado?.idhorario === h.idhorario
-                          ? "border-blue-500 bg-blue-600/20 text-white"
-                          : "border-gray-700 bg-gray-800 text-gray-300"
-                      }`}
-                    >
-                      {horarios.length > 1 && (
-                        <span className="text-gray-500 text-xs mr-2">[{i + 1}]</span>
-                      )}
-                      <span className="font-semibold">{h.dia_nombre}</span>
-                      <span className="text-gray-400 ml-2">{h.hora_inicio.slice(0, 5)} – {h.hora_fin.slice(0, 5)}</span>
-                    </button>
-                  ))}
-
-                  {horarioSeleccionado && (
-                    <div className="space-y-2 pt-1">
-                      <p className="text-gray-400 text-sm">¿Asististe hoy?</p>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => registrarSesion(true)}
-                          disabled={cargando}
-                          className="flex-1 bg-green-600 hover:bg-green-500 active:bg-green-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-base"
-                        >
-                          <span className="block">Sí, asistí</span>
-                          <span className="block text-green-300 text-xs font-normal mt-0.5">Enter</span>
-                        </button>
-                        <button
-                          onClick={() => registrarSesion(false)}
-                          disabled={cargando}
-                          className="flex-1 bg-red-700 hover:bg-red-600 active:bg-red-800 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-base"
-                        >
-                          <span className="block">No asistí</span>
-                          <span className="block text-red-300 text-xs font-normal mt-0.5">0 / *</span>
-                        </button>
-                      </div>
+            sesionExpirada ? <ExpiryScreen /> : (
+              <div className="space-y-4">
+                <div className="bg-gray-800 rounded-xl p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-gray-400 text-xs uppercase tracking-wide">Cliente</p>
+                      <p className="text-white font-bold text-2xl mt-0.5">{cliente.nombre}</p>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-gray-400 text-sm">No tenés horario asignado para hoy.</p>
-                  <button
-                    onClick={() => setPaso("pago")}
-                    className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors"
-                  >
-                    <span className="block">Ir a pagar deuda</span>
-                    <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>
-                  </button>
-                </div>
-              )}
-
-              {error && <p className="text-red-400 text-sm">{error}</p>}
-              <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
-                ← Volver
-              </button>
-            </div>
-          )}
-
-          {/* PASO 3: Elegir monto */}
-          {paso === "pago" && cliente && (
-            <div className="space-y-4">
-              <div className="bg-gray-800 rounded-xl p-4">
-                <p className="text-gray-400 text-xs uppercase tracking-wide">Cliente</p>
-                <p className="text-white font-bold text-2xl mt-0.5">{cliente.nombre}</p>
-                <div className="mt-3 pt-3 border-t border-gray-700">
-                  <p className="text-gray-400 text-xs uppercase tracking-wide">Deuda total</p>
-                  <p className="text-yellow-400 font-bold text-3xl mt-0.5">
-                    ${Number(cliente.balance).toLocaleString("es-AR")}
-                  </p>
-                  {sesion && (
-                    <p className="text-gray-500 text-xs mt-1">
-                      Incluye sesión de hoy: ${Number(sesion.monto).toLocaleString("es-AR")}
-                      {sesion.asistio === 0 ? " (reserva)" : ""}
+                    <span className={`text-xs font-mono tabular-nums ${sesionColor}`}>{fmtTime(tiempoSesion)}</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-700">
+                    <p className="text-gray-400 text-xs uppercase tracking-wide">Deuda actual</p>
+                    <p className="text-yellow-400 font-bold text-3xl mt-0.5">
+                      ${Number(cliente.balance).toLocaleString("es-AR")}
                     </p>
-                  )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-gray-400 text-sm">Monto a pagar</label>
-                <input
-                  ref={montoInputRef}
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  value={montoPagar}
-                  onChange={(e) => setMontoPagar(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !cargando && Number(montoPagar) > 0) generarQR();
-                  }}
-                  className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={() => {
-                    setMontoPagar(String(cliente.balance));
-                    montoInputRef.current?.focus();
-                  }}
-                  className="text-blue-400 text-sm py-1"
-                >
-                  Pagar total (${Number(cliente.balance).toLocaleString("es-AR")})
+                {horarios.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-gray-400 text-sm font-medium">Horario de hoy</p>
+                    {horarios.map((h, i) => (
+                      <button
+                        key={h.idhorario}
+                        onClick={() => setHorarioSeleccionado(h)}
+                        className={`w-full text-left px-4 py-4 rounded-xl border transition-colors ${
+                          horarioSeleccionado?.idhorario === h.idhorario
+                            ? "border-blue-500 bg-blue-600/20 text-white"
+                            : "border-gray-700 bg-gray-800 text-gray-300"
+                        }`}
+                      >
+                        {horarios.length > 1 && <span className="text-gray-500 text-xs mr-2">[{i + 1}]</span>}
+                        <span className="font-semibold">{h.dia_nombre}</span>
+                        <span className="text-gray-400 ml-2">{h.hora_inicio.slice(0, 5)} – {h.hora_fin.slice(0, 5)}</span>
+                      </button>
+                    ))}
+
+                    {horarioSeleccionado && (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-gray-400 text-sm">¿Asististe hoy?</p>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => registrarSesion(true)}
+                            disabled={cargando}
+                            className="flex-1 bg-green-600 hover:bg-green-500 active:bg-green-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-base"
+                          >
+                            <span className="block">Sí, asistí</span>
+                            <span className="block text-green-300 text-xs font-normal mt-0.5">Enter</span>
+                          </button>
+                          <button
+                            onClick={() => registrarSesion(false)}
+                            disabled={cargando}
+                            className="flex-1 bg-red-700 hover:bg-red-600 active:bg-red-800 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-base"
+                          >
+                            <span className="block">No asistí</span>
+                            <span className="block text-red-300 text-xs font-normal mt-0.5">0 / *</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-gray-400 text-sm">No tenés horario asignado para hoy.</p>
+                    <button
+                      onClick={() => setPaso("pago")}
+                      className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors"
+                    >
+                      <span className="block">Ir a pagar deuda</span>
+                      <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>
+                    </button>
+                  </div>
+                )}
+
+                {error && <p className="text-red-400 text-sm">{error}</p>}
+                <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
+                  ← Volver
                 </button>
               </div>
-
-              {error && <p className="text-red-400 text-sm">{error}</p>}
-
-              <button
-                onClick={generarQR}
-                disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
-                className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg"
-              >
-                <span className="block">{cargando ? "Generando QR..." : "Generar QR de pago"}</span>
-                {!cargando && <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
-              </button>
-              <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
-                ← Volver
-              </button>
-            </div>
+            )
           )}
 
-          {/* PASO 4: Mostrar QR */}
+          {/* PASO 3: Monto */}
+          {paso === "pago" && cliente && (
+            sesionExpirada ? <ExpiryScreen /> : (
+              <div className="space-y-4">
+                <div className="bg-gray-800 rounded-xl p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-gray-400 text-xs uppercase tracking-wide">Cliente</p>
+                      <p className="text-white font-bold text-2xl mt-0.5">{cliente.nombre}</p>
+                    </div>
+                    <span className={`text-xs font-mono tabular-nums ${sesionColor}`}>{fmtTime(tiempoSesion)}</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-700">
+                    <p className="text-gray-400 text-xs uppercase tracking-wide">Deuda total</p>
+                    <p className="text-yellow-400 font-bold text-3xl mt-0.5">
+                      ${Number(cliente.balance).toLocaleString("es-AR")}
+                    </p>
+                    {sesion && (
+                      <p className="text-gray-500 text-xs mt-1">
+                        Incluye sesión de hoy: ${Number(sesion.monto).toLocaleString("es-AR")}
+                        {sesion.asistio === 0 ? " (reserva)" : ""}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-gray-400 text-sm">Monto a pagar</label>
+                  <input
+                    ref={montoInputRef}
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    value={montoPagar}
+                    onChange={(e) => setMontoPagar(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !cargando && Number(montoPagar) > 0) generarQR();
+                    }}
+                    className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => { setMontoPagar(String(cliente.balance)); montoInputRef.current?.focus(); }}
+                    className="text-blue-400 text-sm py-1"
+                  >
+                    Pagar total (${Number(cliente.balance).toLocaleString("es-AR")})
+                  </button>
+                </div>
+
+                {error && <p className="text-red-400 text-sm">{error}</p>}
+
+                <button
+                  onClick={generarQR}
+                  disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
+                  className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg"
+                >
+                  <span className="block">{cargando ? "Generando QR..." : "Generar QR de pago"}</span>
+                  {!cargando && <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
+                </button>
+                <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
+                  ← Volver
+                </button>
+              </div>
+            )
+          )}
+
+          {/* PASO 4: QR */}
           {paso === "qr" && cliente && (
             <div className="space-y-4 text-center">
-
               {pagoCobrado ? (
                 <div className="py-8 space-y-4">
                   <div className="flex justify-center">
@@ -488,9 +515,7 @@ export default function Home() {
                   </div>
                   <div>
                     <p className="text-white font-bold text-2xl">¡Pago recibido!</p>
-                    <p className="text-gray-400 text-sm mt-1">
-                      ${Number(montoPagar).toLocaleString("es-AR")} · {cliente.nombre}
-                    </p>
+                    <p className="text-gray-400 text-sm mt-1">${Number(montoPagar).toLocaleString("es-AR")} · {cliente.nombre}</p>
                   </div>
                   <p className="text-gray-500 text-sm">Volviendo al inicio...</p>
                 </div>
@@ -504,10 +529,7 @@ export default function Home() {
                       </svg>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-white font-bold text-xl">QR vencido</p>
-                    <p className="text-gray-400 text-sm mt-1">El código expiró.</p>
-                  </div>
+                  <p className="text-white font-bold text-xl">QR vencido</p>
                   <p className="text-gray-500 text-sm">Volviendo al inicio...</p>
                 </div>
 
@@ -516,28 +538,18 @@ export default function Home() {
                   <div className="bg-gray-800 rounded-xl p-4">
                     <p className="text-gray-400 text-xs uppercase tracking-wide">Pagando</p>
                     <p className="text-white font-bold text-xl mt-0.5">{cliente.nombre}</p>
-                    <p className="text-green-400 font-bold text-3xl mt-1">
-                      ${Number(montoPagar).toLocaleString("es-AR")}
-                    </p>
+                    <p className="text-green-400 font-bold text-3xl mt-1">${Number(montoPagar).toLocaleString("es-AR")}</p>
                   </div>
 
                   <div className="flex items-center justify-between px-1">
                     <p className="text-gray-400 text-sm">Escaneá con la app de Mercado Pago</p>
-                    <p className={`text-sm font-mono font-semibold tabular-nums ${countdownColor}`}>
-                      {String(Math.floor(tiempoRestante / 60)).padStart(2, "0")}:{String(tiempoRestante % 60).padStart(2, "0")}
-                    </p>
+                    <p className={`text-sm font-mono font-semibold tabular-nums ${qrColor}`}>{fmtTime(tiempoQR)}</p>
                   </div>
 
                   {qrPos && (
                     <div className="flex justify-center">
                       <div className="bg-white p-3 rounded-2xl inline-block shadow-lg">
-                        <Image
-                          src={qrPos}
-                          alt="QR Mercado Pago"
-                          width={280}
-                          height={280}
-                          className="w-[240px] h-[240px] sm:w-[280px] sm:h-[280px]"
-                        />
+                        <Image src={qrPos} alt="QR Mercado Pago" width={280} height={280} className="w-[240px] h-[240px] sm:w-[280px] sm:h-[280px]" />
                       </div>
                     </div>
                   )}
