@@ -334,15 +334,6 @@ export default function Home() {
                 </div>
               )}
 
-              <a
-                href={initPoint}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white font-semibold py-4 rounded-xl transition-colors"
-              >
-                Abrir en Mercado Pago
-              </a>
-
               <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
                 Nueva consulta
               </button>
