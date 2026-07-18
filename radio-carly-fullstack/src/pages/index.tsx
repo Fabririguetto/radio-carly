@@ -281,7 +281,6 @@ export default function Home() {
     setHorarios([]);
     setHorarioSeleccionado(null);
     setMontoPagar("");
-    setQrUrl("");
     setQrPos("");
     setInitPoint("");
     setPreferenceId("");
