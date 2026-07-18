@@ -10,19 +10,24 @@ function mpHeaders(token: string) {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
-    const [rows] = await pool.query(
-      "SELECT nombre_negocio, mp_collector_id, mp_pos_external_id, mp_access_token FROM config LIMIT 1"
-    );
-    const row = (rows as any[])[0] ?? {};
-    return res.json({
-      configurado: !!row.mp_access_token,
-      nombre_negocio: row.nombre_negocio ?? "",
-      mp_collector_id: row.mp_collector_id ?? "",
-      mp_pos_external_id: row.mp_pos_external_id ?? "",
-      mp_token_hint: row.mp_access_token
-        ? `...${String(row.mp_access_token).slice(-6)}`
-        : null,
-    });
+    try {
+      const [rows] = await pool.query(
+        "SELECT nombre_negocio, mp_collector_id, mp_pos_external_id, mp_access_token FROM config LIMIT 1"
+      );
+      const row = (rows as any[])[0] ?? {};
+      return res.json({
+        configurado: !!row.mp_access_token,
+        nombre_negocio: row.nombre_negocio ?? "",
+        mp_collector_id: row.mp_collector_id ?? "",
+        mp_pos_external_id: row.mp_pos_external_id ?? "",
+        mp_token_hint: row.mp_access_token
+          ? `...${String(row.mp_access_token).slice(-6)}`
+          : null,
+      });
+    } catch (e: any) {
+      console.error("mp-config GET error:", e.message);
+      return res.status(500).json({ error: e.message });
+    }
   }
 
   if (req.method === "POST") {
