@@ -8,6 +8,15 @@ function mpHeaders(token: string) {
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
+async function safeJson(res: Response, label: string): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${label} devolvió no-JSON (${res.status}): ${text.slice(0, 300)}`);
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { code, error } = req.query;
 
@@ -30,17 +39,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         grant_type: "authorization_code",
       }),
     });
-
     if (!tokenRes.ok) {
       console.error("OAuth token exchange failed:", await tokenRes.text());
       return res.redirect("/admin/config?mp=error&reason=token");
     }
-
-    const { access_token, refresh_token, user_id, expires_in } = await tokenRes.json();
+    const { access_token, refresh_token, user_id, expires_in } = await safeJson(tokenRes, "token");
 
     // 2. Verificar que no sea cuenta de prueba
     const meRes = await fetch(`${MP_BASE}/users/me`, { headers: mpHeaders(access_token) });
-    const me = await meRes.json();
+    const me = await safeJson(meRes, "users/me");
     if (me.tags?.includes("test_user")) {
       return res.redirect("/admin/config?mp=error&reason=test_user");
     }
@@ -77,6 +84,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 5. Crear sucursal (reusar si ya existe)
     const storeExternalId = `STORE${collectorId}`;
     let storeId: string;
+
     const storeCreateRes = await fetch(`${MP_BASE}/users/${collectorId}/stores`, {
       method: "POST",
       headers: mpHeaders(access_token),
@@ -103,19 +111,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       }),
     });
-    const storeCreate = await storeCreateRes.json();
+    const storeCreate = await safeJson(storeCreateRes, "store POST");
+
     if (storeCreate.id) {
       storeId = String(storeCreate.id);
     } else if (storeCreate.status === 400) {
-      // Ya existe — buscarlo por external_id
-      const storeSearchRes = await fetch(
-        `${MP_BASE}/users/${collectorId}/stores?external_id=${storeExternalId}&limit=1`,
+      // Ya existe — listar todas y filtrar por external_id
+      const storeListRes = await fetch(
+        `${MP_BASE}/users/${collectorId}/stores`,
         { headers: mpHeaders(access_token) }
       );
-      const storeSearch = await storeSearchRes.json();
-      const found = storeSearch.results?.[0] ?? storeSearch.data?.results?.[0] ?? storeSearch[0];
+      const storeList = await safeJson(storeListRes, "store LIST");
+      const results = storeList.results ?? storeList.data?.results ?? storeList;
+      const found = Array.isArray(results)
+        ? results.find((s: any) => s.external_id === storeExternalId)
+        : null;
       if (!found?.id) {
-        console.error("Store search failed:", JSON.stringify(storeSearch));
+        console.error("Store list:", JSON.stringify(storeList));
         return res.redirect("/admin/config?mp=error&reason=store");
       }
       storeId = String(found.id);
@@ -127,6 +139,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 6. Crear caja POS (reusar si ya existe)
     const posExternalId = `CAJA${collectorId}`;
     let posId: string;
+
     const posCreateRes = await fetch(`${MP_BASE}/pos`, {
       method: "POST",
       headers: mpHeaders(access_token),
@@ -137,19 +150,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         fixed_amount: true,
       }),
     });
-    const posCreate = await posCreateRes.json();
+    const posCreate = await safeJson(posCreateRes, "pos POST");
+
     if (posCreate.id) {
       posId = String(posCreate.id);
     } else if (posCreate.status === 409) {
       // Ya existe — buscarlo por external_id
-      const posSearchRes = await fetch(
-        `${MP_BASE}/pos?external_id=${posExternalId}&limit=1`,
+      const posListRes = await fetch(
+        `${MP_BASE}/pos?external_id=${posExternalId}`,
         { headers: mpHeaders(access_token) }
       );
-      const posSearch = await posSearchRes.json();
-      const foundPos = posSearch.results?.[0] ?? posSearch[0];
+      const posList = await safeJson(posListRes, "pos LIST");
+      const foundPos = posList.results?.[0] ?? posList[0];
       if (!foundPos?.id) {
-        console.error("POS search failed:", JSON.stringify(posSearch));
+        console.error("POS list:", JSON.stringify(posList));
         return res.redirect("/admin/config?mp=error&reason=pos");
       }
       posId = String(foundPos.id);
