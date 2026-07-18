@@ -1,7 +1,26 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import pool from "@/lib/db";
+import { invalidateMpConfig } from "@/lib/mp";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "DELETE") {
+    try {
+      await pool.query(
+        `UPDATE config SET
+          mp_access_token     = NULL,
+          mp_refresh_token    = NULL,
+          mp_token_expires_at = NULL,
+          mp_collector_id     = NULL,
+          mp_pos_external_id  = NULL
+        WHERE id = 1`
+      );
+      invalidateMpConfig();
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   if (req.method !== "GET") return res.status(405).end();
 
   try {

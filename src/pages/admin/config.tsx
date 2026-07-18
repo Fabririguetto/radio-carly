@@ -39,6 +39,7 @@ export default function AdminConfig() {
   const [mpCiudad, setMpCiudad] = useState("");
   const [mpProvincia, setMpProvincia] = useState("");
   const [mpCargando, setMpCargando] = useState(false);
+  const [mpDesvinculando, setMpDesvinculando] = useState(false);
   const [exitoMp, setExitoMp] = useState("");
   const [errorMp, setErrorMp] = useState("");
 
@@ -86,6 +87,25 @@ export default function AdminConfig() {
     });
     if (res.ok) setExitoPrecios("Precios actualizados correctamente.");
     else setErrorPrecios("Error al guardar.");
+  }
+
+  async function desvincularMp() {
+    if (!confirm("¿Desvinculás Mercado Pago? Los pagos QR dejarán de funcionar hasta que vuelvas a conectar.")) return;
+    setMpDesvinculando(true);
+    setErrorMp(""); setExitoMp("");
+    try {
+      const res = await fetch("/api/admin/mp-config", { method: "DELETE" });
+      if (res.ok) {
+        setExitoMp("Mercado Pago desvinculado.");
+        cargarEstadoMp();
+      } else {
+        setErrorMp("Error al desvincular.");
+      }
+    } catch {
+      setErrorMp("Error de red.");
+    } finally {
+      setMpDesvinculando(false);
+    }
   }
 
   async function conectarMp() {
@@ -254,7 +274,7 @@ export default function AdminConfig() {
 
           <button
             onClick={conectarMp}
-            disabled={mpCargando}
+            disabled={mpCargando || mpDesvinculando}
             className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors text-base"
           >
             {mpCargando
@@ -263,6 +283,16 @@ export default function AdminConfig() {
                 ? "Reconectar Mercado Pago"
                 : "Conectar con Mercado Pago"}
           </button>
+
+          {mpEstado?.configurado && (
+            <button
+              onClick={desvincularMp}
+              disabled={mpDesvinculando || mpCargando}
+              className="w-full bg-transparent hover:bg-red-950 active:bg-red-900 disabled:opacity-50 text-red-400 font-medium py-3 rounded-xl transition-colors text-sm border border-red-900"
+            >
+              {mpDesvinculando ? "Desvinculando..." : "Desvincular Mercado Pago"}
+            </button>
+          )}
           <p className="text-gray-500 text-xs text-center">
             Serás redirigido a Mercado Pago para autorizar la conexión
           </p>
