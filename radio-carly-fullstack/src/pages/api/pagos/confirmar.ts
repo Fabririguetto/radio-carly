@@ -5,17 +5,22 @@ import pool from "@/lib/db";
 const mp = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { payment_id } = req.query;
+  const { payment_id, preference_id } = req.query;
   if (!payment_id) return res.status(400).json({ error: "payment_id requerido" });
 
   try {
+    // Verificar que el pago esté aprobado en MP
     const payment = await new Payment(mp).get({ id: Number(payment_id) });
-    if (payment.status !== "approved") return res.json({ ok: false, status: payment.status });
+    if (payment.status !== "approved") {
+      return res.json({ ok: false, status: payment.status });
+    }
 
+    // preference_id viene de la URL de redirect de MP (más confiable que el campo del objeto pago)
+    // Fallback: intentar sacarlo del objeto de pago si no vino por query
     const matchId =
-      (payment as any).preference_id ??
-      (payment as any).external_reference ??
-      null;
+      preference_id
+        ? String(preference_id)
+        : ((payment as any).preference_id ?? (payment as any).external_reference ?? null);
 
     if (!matchId) return res.json({ ok: false, reason: "sin matchId" });
 
@@ -47,6 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.json({ ok: true });
   } catch (e: any) {
+    console.error("confirmar error:", e.message);
     res.status(500).json({ error: e.message });
   }
 }

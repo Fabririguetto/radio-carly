@@ -5,12 +5,14 @@ export default function PagoExitoso() {
   const router = useRouter();
   const [segundos, setSegundos] = useState(5);
 
-  // Fallback: procesa el pago usando el payment_id que MP manda en la URL
+  // Fallback: procesa el pago usando payment_id + preference_id de la URL de MP
   useEffect(() => {
     if (!router.isReady) return;
-    const { payment_id } = router.query;
+    const { payment_id, preference_id } = router.query;
     if (payment_id) {
-      fetch(`/api/pagos/confirmar?payment_id=${payment_id}`).catch(() => null);
+      const params = new URLSearchParams({ payment_id: String(payment_id) });
+      if (preference_id) params.set("preference_id", String(preference_id));
+      fetch(`/api/pagos/confirmar?${params}`).catch(() => null);
     }
   }, [router.isReady, router.query]);
 
