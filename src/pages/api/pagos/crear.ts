@@ -10,6 +10,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!idcliente || !monto || monto <= 0) {
     return res.status(400).json({ error: "idcliente y monto válido son requeridos" });
   }
+  if (Number(monto) < 15) {
+    return res.status(400).json({ error: "El monto mínimo para pagar con QR es $15." });
+  }
 
   const [rows] = await pool.query(
     "SELECT nombre FROM clientes WHERE idcliente = ?",
