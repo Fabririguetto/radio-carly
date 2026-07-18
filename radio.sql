@@ -106,7 +106,7 @@ CREATE TABLE `pagos` (
   `idpago`          int NOT NULL AUTO_INCREMENT,
   `idcliente`       int NOT NULL,
   `monto`           decimal(10,2) NOT NULL,
-  `mp_preference_id` varchar(255) DEFAULT NULL,
+  `mp_order_id`     varchar(255) DEFAULT NULL,
   `mp_payment_id`   varchar(255) DEFAULT NULL,
   `estado`          enum('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
   `fecha`           datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,

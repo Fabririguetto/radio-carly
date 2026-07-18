@@ -38,8 +38,7 @@ export default function Home() {
   const [horarioSeleccionado, setHorarioSeleccionado] = useState<Horario | null>(null);
   const [montoPagar, setMontoPagar] = useState("");
   const [qrPos, setQrPos] = useState("");
-  const [initPoint, setInitPoint] = useState("");
-  const [preferenceId, setPreferenceId] = useState("");
+  const [orderId, setOrderId] = useState("");
   const [pagoCobrado, setPagoCobrado] = useState(false);
 
   // Countdown para pasos sesion/pago
@@ -137,11 +136,11 @@ export default function Home() {
 
   // Polling: detecta pago aprobado cada 3s
   useEffect(() => {
-    if (paso !== "qr" || !preferenceId || pagoCobrado || qrVencido) return;
+    if (paso !== "qr" || !orderId || pagoCobrado || qrVencido) return;
 
     pollingRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/pagos/estado?preferenceId=${preferenceId}`);
+        const res = await fetch(`/api/pagos/estado?orderId=${orderId}`);
         if (!res.ok) return;
         const { estado } = await res.json();
         if (estado === "aprobado") {
@@ -156,7 +155,7 @@ export default function Home() {
     }, 3000);
 
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [paso, preferenceId, pagoCobrado, qrVencido]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [paso, orderId, pagoCobrado, qrVencido]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Countdown QR: 60s
   useEffect(() => {
@@ -178,7 +177,7 @@ export default function Home() {
     }, 1000);
 
     return () => { if (qrCountdownRef.current) clearInterval(qrCountdownRef.current); };
-  }, [paso, preferenceId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [paso, orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function buscarCliente() {
     if (!dni.trim()) return;
@@ -259,8 +258,7 @@ export default function Home() {
       });
       const data = await res.json();
       setQrPos(data.qrPos || "");
-      setInitPoint(data.initPoint);
-      setPreferenceId(data.preferenceId || "");
+      setOrderId(data.orderId || "");
       setPaso("qr");
     } catch {
       setError("Error al generar el QR.");
@@ -276,8 +274,7 @@ export default function Home() {
     setHorarioSeleccionado(null);
     setMontoPagar("");
     setQrPos("");
-    setInitPoint("");
-    setPreferenceId("");
+    setOrderId("");
     setPagoCobrado(false);
     setQrVencido(false);
     setTiempoQR(TTL);
@@ -553,15 +550,6 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-
-                  <a
-                    href={initPoint}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full bg-gray-800 hover:bg-gray-700 active:bg-gray-900 text-white font-semibold py-4 rounded-xl transition-colors text-center"
-                  >
-                    Abrir en Mercado Pago
-                  </a>
 
                   <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
                     Nueva consulta
