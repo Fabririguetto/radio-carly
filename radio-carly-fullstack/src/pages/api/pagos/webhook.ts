@@ -11,17 +11,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { type, data } = req.body;
 
-  // Solo procesamos notificaciones de pagos aprobados
   if (type !== "payment" || !data?.id) return res.status(200).end();
 
   const payment = await new Payment(mp).get({ id: data.id });
   if (payment.status !== "approved") return res.status(200).end();
 
-  const preferenceId = (payment as any).preference_id;
+  // Checkout Pro → preference_id apunta al mp_preference_id de la tabla pagos
+  // QR POS dinámico → no hay preference_id, pero external_reference = preference.id
+  const matchId =
+    (payment as any).preference_id ??
+    (payment as any).external_reference ??
+    null;
+
+  if (!matchId) return res.status(200).end();
 
   const [pagoRows] = await pool.query(
     "SELECT idpago, idcliente, monto FROM pagos WHERE mp_preference_id = ? AND estado = 'pendiente'",
-    [preferenceId]
+    [matchId]
   );
   const pago = (pagoRows as any[])[0];
   if (!pago) return res.status(200).end();

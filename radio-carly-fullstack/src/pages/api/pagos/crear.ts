@@ -20,11 +20,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const cliente = (rows as any[])[0];
   if (!cliente) return res.status(404).json({ error: "Cliente no encontrado" });
 
+  // ── Checkout Pro ─────────────────────────────────────────────────────────────
   const preference = await new Preference(mp).create({
     body: {
       items: [
         {
-          id: `radio-sesion-${idcliente}`,
+          id: `sesion-${idcliente}`,
           title: `WOX Rosario — ${cliente.nombre}`,
           quantity: 1,
           unit_price: Number(monto),
@@ -32,6 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       ],
       payer: { name: cliente.nombre },
+      external_reference: `pref-${idcliente}-${Date.now()}`,
       back_urls: {
         success: `${process.env.NEXT_PUBLIC_APP_URL}/pago-exitoso`,
         failure: `${process.env.NEXT_PUBLIC_APP_URL}/pago-fallido`,
@@ -41,22 +43,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   });
 
-  // Guardar el pago en estado pendiente
+  // QR de cámara (Checkout Pro init_point codificado como imagen)
+  const qrCamara = await QRCode.toDataURL(preference.init_point!, { width: 300, margin: 2 });
+
+  // Guardar pago pendiente (preference.id actúa como referencia compartida con el QR POS)
   await pool.query(
     `INSERT INTO pagos (idcliente, monto, mp_preference_id, estado)
      VALUES (?, ?, ?, 'pendiente')`,
     [idcliente, monto, preference.id]
   );
 
-  // Generar QR como imagen base64
-  const qrDataUrl = await QRCode.toDataURL(preference.init_point!, {
-    width: 300,
-    margin: 2,
-  });
+  // ── QR POS dinámico (app de Mercado Pago) ────────────────────────────────────
+  let qrPos: string | null = null;
+
+  const collectorId  = process.env.MP_COLLECTOR_ID;
+  const posExternalId = process.env.MP_POS_EXTERNAL_ID;
+
+  if (collectorId && posExternalId) {
+    try {
+      const posRes = await fetch(
+        `https://api.mercadopago.com/instore/orders/qr/seller/collectors/${collectorId}/pos/${posExternalId}/qrs`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            // Usamos preference.id como external_reference para que el webhook
+            // pueda encontrar el registro en la tabla pagos por mp_preference_id
+            external_reference: preference.id,
+            title: `WOX Rosario — ${cliente.nombre}`,
+            description: "Sesión de radio",
+            notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/pagos/webhook`,
+            total_amount: Number(monto),
+            items: [
+              {
+                sku_number: `sesion-${idcliente}`,
+                category: "services",
+                title: `Sesión — ${cliente.nombre}`,
+                description: "Sesión de radio WOX Rosario",
+                unit_price: Number(monto),
+                quantity: 1,
+                unit_measure: "unit",
+                total_amount: Number(monto),
+              },
+            ],
+          }),
+        }
+      );
+      const posData = await posRes.json();
+      if (posData.qr_data) {
+        qrPos = await QRCode.toDataURL(posData.qr_data, { width: 300, margin: 2 });
+      }
+    } catch (e) {
+      console.error("POS QR error (no crítico):", e);
+    }
+  }
 
   res.status(200).json({
     preferenceId: preference.id,
     initPoint: preference.init_point,
-    qr: qrDataUrl,
+    qr: qrCamara,   // para escanear con cámara
+    qrPos,          // para escanear con app de MP (null si POS no configurado)
   });
 }

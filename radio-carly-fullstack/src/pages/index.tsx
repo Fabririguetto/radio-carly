@@ -37,6 +37,8 @@ export default function Home() {
   const [horarioSeleccionado, setHorarioSeleccionado] = useState<Horario | null>(null);
   const [montoPagar, setMontoPagar] = useState("");
   const [qrUrl, setQrUrl] = useState("");
+  const [qrPos, setQrPos] = useState("");
+  const [qrTipo, setQrTipo] = useState<"camara"|"app">("camara");
   const [initPoint, setInitPoint] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -124,6 +126,8 @@ export default function Home() {
       });
       const data = await res.json();
       setQrUrl(data.qr);
+      setQrPos(data.qrPos || "");
+      setQrTipo("camara");
       setInitPoint(data.initPoint);
       setPaso("qr");
     } catch {
@@ -140,6 +144,8 @@ export default function Home() {
     setHorarioSeleccionado(null);
     setMontoPagar("");
     setQrUrl("");
+    setQrPos("");
+    setQrTipo("camara");
     setInitPoint("");
     setError("");
     setPaso("dni");
@@ -318,13 +324,35 @@ export default function Home() {
                 </p>
               </div>
 
-              <p className="text-gray-400 text-sm">Escaneá el código con la app de Mercado Pago</p>
+              {/* Selector Cámara / App MP (solo visible si el POS está configurado) */}
+              {qrPos && (
+                <div className="flex gap-1 bg-gray-800 rounded-xl p-1">
+                  <button
+                    onClick={() => setQrTipo("camara")}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${qrTipo === "camara" ? "bg-gray-600 text-white" : "text-gray-400"}`}
+                  >
+                    Cámara
+                  </button>
+                  <button
+                    onClick={() => setQrTipo("app")}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${qrTipo === "app" ? "bg-blue-600 text-white" : "text-gray-400"}`}
+                  >
+                    App MP
+                  </button>
+                </div>
+              )}
+
+              <p className="text-gray-400 text-sm">
+                {qrPos && qrTipo === "app"
+                  ? "Escaneá con la app de Mercado Pago"
+                  : "Escaneá con la cámara de tu teléfono"}
+              </p>
 
               {qrUrl && (
                 <div className="flex justify-center">
                   <div className="bg-white p-3 rounded-2xl inline-block shadow-lg">
                     <Image
-                      src={qrUrl}
+                      src={qrTipo === "app" && qrPos ? qrPos : qrUrl}
                       alt="QR Mercado Pago"
                       width={280}
                       height={280}
