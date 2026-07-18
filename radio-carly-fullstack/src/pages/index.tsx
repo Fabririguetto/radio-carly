@@ -38,9 +38,7 @@ export default function Home() {
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [horarioSeleccionado, setHorarioSeleccionado] = useState<Horario | null>(null);
   const [montoPagar, setMontoPagar] = useState("");
-  const [qrUrl, setQrUrl] = useState("");
   const [qrPos, setQrPos] = useState("");
-  const [qrTipo, setQrTipo] = useState<"camara" | "app">("camara");
   const [initPoint, setInitPoint] = useState("");
   const [preferenceId, setPreferenceId] = useState("");
   const [pagoCobrado, setPagoCobrado] = useState(false);
@@ -266,9 +264,7 @@ export default function Home() {
         body: JSON.stringify({ idcliente: cliente.idcliente, monto: Number(montoPagar) }),
       });
       const data = await res.json();
-      setQrUrl(data.qr);
       setQrPos(data.qrPos || "");
-      setQrTipo("camara");
       setInitPoint(data.initPoint);
       setPreferenceId(data.preferenceId || "");
       setPaso("qr");
@@ -287,7 +283,6 @@ export default function Home() {
     setMontoPagar("");
     setQrUrl("");
     setQrPos("");
-    setQrTipo("camara");
     setInitPoint("");
     setPreferenceId("");
     setPagoCobrado(false);
@@ -527,39 +522,18 @@ export default function Home() {
                     </p>
                   </div>
 
-                  {qrPos && (
-                    <div className="flex gap-1 bg-gray-800 rounded-xl p-1">
-                      <button
-                        onClick={() => setQrTipo("camara")}
-                        className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${qrTipo === "camara" ? "bg-gray-600 text-white" : "text-gray-400"}`}
-                      >
-                        Cámara
-                      </button>
-                      <button
-                        onClick={() => setQrTipo("app")}
-                        className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${qrTipo === "app" ? "bg-blue-600 text-white" : "text-gray-400"}`}
-                      >
-                        App MP
-                      </button>
-                    </div>
-                  )}
-
                   <div className="flex items-center justify-between px-1">
-                    <p className="text-gray-400 text-sm">
-                      {qrPos && qrTipo === "app"
-                        ? "Escaneá con la app de Mercado Pago"
-                        : "Escaneá con la cámara de tu teléfono"}
-                    </p>
+                    <p className="text-gray-400 text-sm">Escaneá con la app de Mercado Pago</p>
                     <p className={`text-sm font-mono font-semibold tabular-nums ${countdownColor}`}>
                       {String(Math.floor(tiempoRestante / 60)).padStart(2, "0")}:{String(tiempoRestante % 60).padStart(2, "0")}
                     </p>
                   </div>
 
-                  {qrUrl && (
+                  {qrPos && (
                     <div className="flex justify-center">
                       <div className="bg-white p-3 rounded-2xl inline-block shadow-lg">
                         <Image
-                          src={qrTipo === "app" && qrPos ? qrPos : qrUrl}
+                          src={qrPos}
                           alt="QR Mercado Pago"
                           width={280}
                           height={280}
