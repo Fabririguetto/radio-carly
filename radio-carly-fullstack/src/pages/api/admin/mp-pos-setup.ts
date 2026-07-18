@@ -55,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: mpHeaders(),
       body: JSON.stringify({
         name: "Caja Principal",
-        external_id: "wox-pos-001",
+        external_id: "woxpos001",
         store_id: store.id,
         fixed_amount: false,
       }),
