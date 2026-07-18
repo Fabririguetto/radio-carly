@@ -40,6 +40,7 @@ export default function AdminConfig() {
   const [mpProvincia, setMpProvincia] = useState("");
   const [mpCargando, setMpCargando] = useState(false);
   const [mpDesvinculando, setMpDesvinculando] = useState(false);
+  const [mpGuardando, setMpGuardando] = useState(false);
   const [exitoMp, setExitoMp] = useState("");
   const [errorMp, setErrorMp] = useState("");
 
@@ -105,6 +106,29 @@ export default function AdminConfig() {
       setErrorMp("Error de red.");
     } finally {
       setMpDesvinculando(false);
+    }
+  }
+
+  async function guardarDatosNegocio() {
+    setErrorMp(""); setExitoMp("");
+    setMpGuardando(true);
+    try {
+      const res = await fetch("/api/admin/mp-config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre_negocio: mpNegocio.trim(),
+          direccion: mpDireccion.trim(),
+          ciudad: mpCiudad.trim(),
+          provincia: mpProvincia.trim(),
+        }),
+      });
+      if (res.ok) setExitoMp("Datos del negocio guardados.");
+      else setErrorMp("Error al guardar.");
+    } catch {
+      setErrorMp("Error de red.");
+    } finally {
+      setMpGuardando(false);
     }
   }
 
@@ -271,6 +295,14 @@ export default function AdminConfig() {
 
           {errorMp && <p className="text-red-400 text-sm">{errorMp}</p>}
           {exitoMp && <p className="text-green-400 text-sm">{exitoMp}</p>}
+
+          <button
+            onClick={guardarDatosNegocio}
+            disabled={mpGuardando || mpCargando || mpDesvinculando}
+            className="w-full bg-gray-700 hover:bg-gray-600 active:bg-gray-800 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors text-sm"
+          >
+            {mpGuardando ? "Guardando..." : "Guardar datos del negocio"}
+          </button>
 
           <button
             onClick={conectarMp}

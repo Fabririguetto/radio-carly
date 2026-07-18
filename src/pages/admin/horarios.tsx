@@ -23,7 +23,7 @@ const COLORES = [
 
 type Horario  = { idhorario:number; dia_semana:number; hora_inicio:string; hora_fin:string; idcliente:number; nombre:string };
 type Cliente  = { idcliente:number; nombre:string; dni:string };
-type Modal    = { dia:number; horaInicio:string; horaFin:string } | null;
+type Modal    = { horaInicio:string; horaFin:string } | null;
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 function toMin(t:string){ const[h,m]=t.slice(0,5).split(":").map(Number); return h*60+m; }
@@ -180,6 +180,9 @@ export default function AdminHorarios(){
   const [clienteId,setClienteId]=useState("");
   const [mInicio,setMInicio]=useState("");
   const [mFin,setMFin]=useState("");
+  const [modalDias,setModalDias]=useState<number[]>([]);
+  const [busquedaCliente,setBusquedaCliente]=useState("");
+  const [dropdownAbierto,setDropdownAbierto]=useState(false);
   const [modalError,setModalError]=useState("");
   const [guardando,setGuardando]=useState(false);
   const [slotActivo,setSlotActivo]=useState<number|null>(null);
@@ -218,21 +221,36 @@ export default function AdminHorarios(){
   for(let d=1;d<=7;d++)porDia[d]=[];
   horarios.forEach(h=>porDia[h.dia_semana]?.push(h));
 
-  function handleSel(dia:number,s:string,e:string){
-    const pre=router.query.cliente?String(router.query.cliente):(clientes[0]?.idcliente.toString()??"");
-    const eFin=e==="24:00"?"23:59":e;  // <input type="time"> no acepta 24:00
-    setModal({dia,horaInicio:s,horaFin:eFin});
-    setMInicio(s); setMFin(eFin); setClienteId(pre); setModalError(""); setSlotActivo(null);
+  function abrirModal(dia?:number,s?:string,e?:string){
+    const preId=router.query.cliente?String(router.query.cliente):"";
+    const preNombre=clientes.find(c=>String(c.idcliente)===preId)?.nombre??"";
+    const eFin=e==="24:00"?"23:59":(e??"");
+    setModal({horaInicio:s??"",horaFin:eFin});
+    setMInicio(s??""); setMFin(eFin);
+    setClienteId(preId);
+    setBusquedaCliente(preNombre);
+    setDropdownAbierto(false);
+    setModalDias(dia!=null?[dia]:[]);
+    setModalError(""); setSlotActivo(null);
   }
+  function handleSel(dia:number,s:string,e:string){ abrirModal(dia,s,e); }
+
+  function toggleModalDia(d:number){
+    setModalDias(prev=>prev.includes(d)?prev.filter(x=>x!==d):[...prev,d].sort((a,b)=>a-b));
+  }
+
   async function guardar(){
-    if(!clienteId||!modal)return;
+    if(!clienteId||!modal||modalDias.length===0){setModalError("Elegí al menos un día.");return;}
     setGuardando(true); setModalError("");
-    const res=await fetch(`/api/admin/clientes/${clienteId}/horarios`,{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({dia_semana:modal.dia,hora_inicio:mInicio,hora_fin:mFin}),
-    });
-    if(res.ok){setModal(null);cargar();}
-    else{const d=await res.json();setModalError(d.error);}
+    try{
+      await Promise.all(modalDias.map(dia=>
+        fetch(`/api/admin/clientes/${clienteId}/horarios`,{
+          method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({dia_semana:dia,hora_inicio:mInicio,hora_fin:mFin}),
+        })
+      ));
+      setModal(null); cargar();
+    }catch{setModalError("Error al guardar.");}
     setGuardando(false);
   }
   async function eliminar(id:number){
@@ -255,11 +273,17 @@ export default function AdminHorarios(){
           <Link href="/admin/clientes" className="text-gray-400 text-sm py-1 pr-1">←</Link>
           <h1 className="text-white font-bold text-lg">Calendario</h1>
         </div>
-        <div className="flex gap-3 text-sm">
-          <Link href="/admin/config" className="text-gray-400 hover:text-white">Precios</Link>
+        <div className="flex items-center gap-3 text-sm">
+          <button onClick={()=>abrirModal()}
+            className="text-white bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded-lg font-semibold text-sm">
+            + Agregar
+          </button>
+          <Link href="/admin/config" className="text-gray-400 hover:text-white">Configuración</Link>
+          <Link href="/admin/ayuda" className="text-gray-400 hover:text-white">Ayuda</Link>
           <button onClick={()=>{sessionStorage.removeItem("admin");router.push("/");}} className="text-red-400">Salir</button>
         </div>
       </div>
+
 
       {cargando?(
         <div className="flex-1 flex items-center justify-center">
@@ -351,34 +375,95 @@ export default function AdminHorarios(){
       {/* Modal */}
       {modal&&(
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0"
-          onClick={()=>setModal(null)}>
+          onClick={()=>{setModal(null);setDropdownAbierto(false);}}>
           <div className="bg-gray-900 rounded-2xl p-5 w-full max-w-sm space-y-4" onClick={e=>e.stopPropagation()}>
-            <div>
-              <h2 className="text-white font-bold text-lg">Nuevo horario</h2>
-              <p className="text-gray-400 text-sm">{DIAS[modal.dia]}</p>
+            <h2 className="text-white font-bold text-lg">Nuevo horario</h2>
+
+            {/* Cliente */}
+            <div className="space-y-2">
+              <label className="text-gray-400 text-xs uppercase tracking-wide">Cliente</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={busquedaCliente}
+                  onChange={e=>{setBusquedaCliente(e.target.value);setClienteId("");setDropdownAbierto(true);}}
+                  onFocus={()=>setDropdownAbierto(true)}
+                  onBlur={()=>setTimeout(()=>setDropdownAbierto(false),150)}
+                  placeholder="Escribí nombre o DNI..."
+                  className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                {dropdownAbierto&&(
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden z-10 max-h-44 overflow-y-auto">
+                    {clientes
+                      .filter(c=>!busquedaCliente||c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase())||c.dni.includes(busquedaCliente))
+                      .map(c=>{
+                        const ci=colorIdx[c.idcliente]??0;
+                        const activo=clienteId===String(c.idcliente);
+                        return(
+                          <button key={c.idcliente}
+                            onMouseDown={e=>{e.preventDefault();setClienteId(String(c.idcliente));setBusquedaCliente(c.nombre);setDropdownAbierto(false);}}
+                            className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors ${activo?"bg-gray-700":"hover:bg-gray-700/60"}`}
+                          >
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${COLORES[ci].slot.split(" ")[0].replace("/85","")}`}/>
+                            <span className="text-white">{c.nombre}</span>
+                            <span className="text-gray-500 text-xs ml-auto">{c.dni}</span>
+                          </button>
+                        );
+                      })
+                    }
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-gray-400 text-sm">Cliente</label>
-              <select value={clienteId} onChange={e=>setClienteId(e.target.value)}
-                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {clientes.map(c=><option key={c.idcliente} value={c.idcliente}>{c.nombre} — {c.dni}</option>)}
-              </select>
+
+            {/* Días */}
+            <div className="space-y-2">
+              <label className="text-gray-400 text-xs uppercase tracking-wide">Días</label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={()=>setModalDias(modalDias.length===7?[]:[1,2,3,4,5,6,7])}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                    modalDias.length===7
+                      ? "bg-white/10 border-white/30 text-white"
+                      : "border-gray-700 text-gray-400 hover:text-white"
+                  }`}
+                >
+                  Todos
+                </button>
+                {DIAS_CORTO.slice(1).map((nombre,i)=>{
+                  const d=i+1; const activo=modalDias.includes(d);
+                  return(
+                    <button key={d} onClick={()=>toggleModalDia(d)}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                        activo
+                          ? "bg-white/10 border-white/30 text-white"
+                          : "border-gray-700 text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      {nombre}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Horario */}
             <div className="flex gap-3">
               <div className="flex-1 space-y-1.5">
-                <label className="text-gray-400 text-xs">Desde</label>
+                <label className="text-gray-400 text-xs uppercase tracking-wide">Desde</label>
                 <input type="time" value={mInicio} onChange={e=>setMInicio(e.target.value)}
                   className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
               </div>
               <div className="flex-1 space-y-1.5">
-                <label className="text-gray-400 text-xs">Hasta</label>
+                <label className="text-gray-400 text-xs uppercase tracking-wide">Hasta</label>
                 <input type="time" value={mFin} onChange={e=>setMFin(e.target.value)}
                   className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
               </div>
             </div>
+
             {modalError&&<p className="text-red-400 text-sm">{modalError}</p>}
             <div className="flex gap-3">
-              <button onClick={()=>setModal(null)}
+              <button onClick={()=>{setModal(null);setDropdownAbierto(false);}}
                 className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3.5 rounded-xl">
                 Cancelar
               </button>

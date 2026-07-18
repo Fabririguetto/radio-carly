@@ -21,6 +21,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  if (req.method === "PATCH") {
+    try {
+      const { nombre_negocio, direccion, ciudad, provincia } = req.body;
+      await pool.query(
+        "UPDATE config SET nombre_negocio = ?, direccion = ?, ciudad = ?, provincia = ? WHERE id = 1",
+        [nombre_negocio ?? null, direccion ?? null, ciudad ?? null, provincia ?? null]
+      );
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   if (req.method !== "GET") return res.status(405).end();
 
   try {
