@@ -80,6 +80,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const prefId = String(preferenceId);
 
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
   const [rows] = await pool.query(
     "SELECT estado FROM pagos WHERE mp_preference_id = ? LIMIT 1",
     [prefId]
