@@ -87,7 +87,7 @@ export default function AdminClientes() {
           <h1 className="text-white font-bold text-xl">Clientes</h1>
           <div className="flex items-center gap-3 text-sm">
             <Link href="/admin/horarios" className="text-gray-400 hover:text-white transition-colors">Calendario</Link>
-            <Link href="/admin/config" className="text-gray-400 hover:text-white transition-colors">Precios</Link>
+            <Link href="/admin/config" className="text-gray-400 hover:text-white transition-colors">Configuración</Link>
             <button onClick={() => { sessionStorage.removeItem("admin"); router.push("/"); }} className="text-red-400 hover:text-red-300 transition-colors">Salir</button>
           </div>
         </div>
