@@ -12,24 +12,36 @@ function mpHeaders() {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
-  // collector_id = User ID de las credenciales de MP (enviado en el body)
   const { collector_id } = req.body as { collector_id?: string };
   if (!collector_id) {
-    return res.status(400).json({ error: "Enviá collector_id en el body (es el User ID de tus credenciales de MP)" });
+    return res.status(400).json({
+      error: "Enviá collector_id en el body (es el User ID de tus credenciales de MP)",
+    });
   }
 
   try {
-    // 1. Crear sucursal (store)
-    const storeRes = await fetch(`${BASE}/v1/stores`, {
+    // 1. Crear sucursal — endpoint correcto: /users/{user_id}/stores
+    const storeRes = await fetch(`${BASE}/users/${collector_id}/stores`, {
       method: "POST",
       headers: mpHeaders(),
-      body: JSON.stringify({ name: "WOX Rosario" }),
+      body: JSON.stringify({
+        name: "WOX Rosario",
+        business_hours: {
+          monday:    [{ open: "00:00", close: "23:59" }],
+          tuesday:   [{ open: "00:00", close: "23:59" }],
+          wednesday: [{ open: "00:00", close: "23:59" }],
+          thursday:  [{ open: "00:00", close: "23:59" }],
+          friday:    [{ open: "00:00", close: "23:59" }],
+          saturday:  [{ open: "00:00", close: "23:59" }],
+          sunday:    [{ open: "00:00", close: "23:59" }],
+        },
+      }),
     });
     const store = await storeRes.json();
     if (!store.id) return res.status(500).json({ error: "No se pudo crear la sucursal", detail: store });
 
-    // 2. Crear caja (POS)
-    const posRes = await fetch(`${BASE}/v1/pos`, {
+    // 2. Crear caja — endpoint: /pos
+    const posRes = await fetch(`${BASE}/pos`, {
       method: "POST",
       headers: mpHeaders(),
       body: JSON.stringify({
@@ -47,7 +59,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       storeId: store.id,
       posId: pos.id,
       posExternalId: pos.external_id,
-      // Copiá estos valores en las variables de entorno de Railway:
       envVars: {
         MP_COLLECTOR_ID: collector_id,
         MP_POS_EXTERNAL_ID: pos.external_id,
