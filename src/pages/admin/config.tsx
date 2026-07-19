@@ -41,6 +41,7 @@ export default function AdminConfig() {
   const [mpCargando, setMpCargando] = useState(false);
   const [mpDesvinculando, setMpDesvinculando] = useState(false);
   const [mpGuardando, setMpGuardando] = useState(false);
+  const [mpActualizandoPos, setMpActualizandoPos] = useState(false);
   const [exitoMp, setExitoMp] = useState("");
   const [errorMp, setErrorMp] = useState("");
 
@@ -129,6 +130,24 @@ export default function AdminConfig() {
       setErrorMp("Error de red.");
     } finally {
       setMpGuardando(false);
+    }
+  }
+
+  async function actualizarPos() {
+    setErrorMp(""); setExitoMp("");
+    setMpActualizandoPos(true);
+    try {
+      const res = await fetch("/api/admin/mp-update-pos", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setExitoMp(data.ya_configurado ? "La caja ya tenía monto fijo activado." : "Caja actualizada: monto fijo activado.");
+      } else {
+        setErrorMp(data.error ?? "Error al actualizar la caja.");
+      }
+    } catch {
+      setErrorMp("Error de red.");
+    } finally {
+      setMpActualizandoPos(false);
     }
   }
 
@@ -298,11 +317,21 @@ export default function AdminConfig() {
 
           <button
             onClick={guardarDatosNegocio}
-            disabled={mpGuardando || mpCargando || mpDesvinculando}
+            disabled={mpGuardando || mpCargando || mpDesvinculando || mpActualizandoPos}
             className="w-full bg-gray-700 hover:bg-gray-600 active:bg-gray-800 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors text-sm"
           >
             {mpGuardando ? "Guardando..." : "Guardar datos del negocio"}
           </button>
+
+          {mpEstado?.configurado && (
+            <button
+              onClick={actualizarPos}
+              disabled={mpActualizandoPos || mpCargando || mpDesvinculando}
+              className="w-full bg-gray-700 hover:bg-gray-600 active:bg-gray-800 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors text-sm"
+            >
+              {mpActualizandoPos ? "Actualizando caja..." : "Activar monto fijo en caja"}
+            </button>
+          )}
 
           <button
             onClick={conectarMp}

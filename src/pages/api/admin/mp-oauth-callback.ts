@@ -113,29 +113,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     const storeCreate = await safeJson(storeCreateRes, "store POST");
 
-    if (storeCreate.id) {
-      // Sucursal nueva — crear POS también
+    let storeId: string | null = storeCreate.id ? String(storeCreate.id) : null;
+
+    if (!storeCreate.id) {
+      if (storeCreate.status === 400) {
+        // Sucursal ya existe — buscar su ID para gestionar el POS
+        const storeListRes = await fetch(`${MP_BASE}/users/${collectorId}/stores`, {
+          headers: mpHeaders(access_token),
+        });
+        const storeList = await safeJson(storeListRes, "store GET list");
+        const existing = (storeList.results ?? []).find((s: any) => s.external_id === storeExternalId);
+        if (existing?.id) storeId = String(existing.id);
+        else console.log(`Sucursal con external_id ${storeExternalId} no encontrada en el listado.`);
+      } else {
+        console.error("Store creation failed:", JSON.stringify(storeCreate));
+        return res.redirect("/admin/config?mp=error&reason=store");
+      }
+    }
+
+    if (storeId) {
+      // Crear POS (si ya existe con ese external_id, MP devuelve 400; luego lo actualizamos)
       const posCreateRes = await fetch(`${MP_BASE}/pos`, {
         method: "POST",
         headers: mpHeaders(access_token),
         body: JSON.stringify({
           name: "Caja Principal",
           external_id: posExternalId,
-          store_id: String(storeCreate.id),
+          store_id: storeId,
           fixed_amount: true,
         }),
       });
       const posCreate = await safeJson(posCreateRes, "pos POST");
-      if (!posCreate.id && posCreate.status !== 409) {
-        console.error("POS creation failed:", JSON.stringify(posCreate));
-        return res.redirect("/admin/config?mp=error&reason=pos");
+
+      if (!posCreate.id) {
+        if (posCreate.status === 400 || posCreate.status === 409) {
+          // POS ya existe — actualizarlo para asegurar fixed_amount: true
+          const posListRes = await fetch(`${MP_BASE}/pos`, { headers: mpHeaders(access_token) });
+          const posList = await safeJson(posListRes, "pos GET list");
+          const existingPos = (posList.results ?? []).find((p: any) => p.external_id === posExternalId);
+          if (existingPos?.id && !existingPos.fixed_amount) {
+            await fetch(`${MP_BASE}/pos/${existingPos.id}`, {
+              method: "PUT",
+              headers: mpHeaders(access_token),
+              body: JSON.stringify({
+                name: existingPos.name,
+                fixed_amount: true,
+                store_id: String(existingPos.store_id),
+                external_id: existingPos.external_id,
+              }),
+            });
+          }
+        } else {
+          console.error("POS creation failed:", JSON.stringify(posCreate));
+          return res.redirect("/admin/config?mp=error&reason=pos");
+        }
       }
-    } else if (storeCreate.status === 400) {
-      // Sucursal ya existe → POS también existe, no hay nada que crear
-      console.log(`Sucursal y POS ya existen para collector ${collectorId}, reutilizando.`);
-    } else {
-      console.error("Store creation failed:", JSON.stringify(storeCreate));
-      return res.redirect("/admin/config?mp=error&reason=store");
     }
 
     // 6. Guardar en DB
