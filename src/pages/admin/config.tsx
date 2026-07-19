@@ -45,6 +45,13 @@ export default function AdminConfig() {
   const [exitoMp, setExitoMp] = useState("");
   const [errorMp, setErrorMp] = useState("");
 
+  // Sucursal
+  const [storeInfo, setStoreInfo] = useState<any>(null);
+  const [storeCargando, setStoreCargando] = useState(false);
+  const [storeEliminando, setStoreEliminando] = useState(false);
+  const [storeError, setStoreError] = useState("");
+  const [storeExito, setStoreExito] = useState("");
+
   useEffect(() => {
     if (sessionStorage.getItem("admin") !== "1") { router.replace("/"); return; }
 
@@ -130,6 +137,46 @@ export default function AdminConfig() {
       setErrorMp("Error de red.");
     } finally {
       setMpGuardando(false);
+    }
+  }
+
+  async function cargarSucursal() {
+    setStoreError(""); setStoreExito("");
+    setStoreCargando(true);
+    try {
+      const res = await fetch("/api/admin/mp-stores");
+      const data = await res.json();
+      if (res.ok) setStoreInfo(data.store);
+      else setStoreError(data.error ?? "Error al cargar sucursal.");
+    } catch {
+      setStoreError("Error de red.");
+    } finally {
+      setStoreCargando(false);
+    }
+  }
+
+  async function eliminarSucursal() {
+    if (!storeInfo?.id) return;
+    if (!confirm("¿Eliminar la sucursal? Los pagos QR seguirán funcionando mientras la caja no sea eliminada también.")) return;
+    setStoreError(""); setStoreExito("");
+    setStoreEliminando(true);
+    try {
+      const res = await fetch("/api/admin/mp-stores", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: storeInfo.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStoreExito("Sucursal eliminada.");
+        setStoreInfo(null);
+      } else {
+        setStoreError(data.error ?? "Error al eliminar sucursal.");
+      }
+    } catch {
+      setStoreError("Error de red.");
+    } finally {
+      setStoreEliminando(false);
     }
   }
 
@@ -358,6 +405,57 @@ export default function AdminConfig() {
             Serás redirigido a Mercado Pago para autorizar la conexión
           </p>
         </div>
+
+        {/* Sucursal */}
+        {mpEstado?.configurado && (
+          <div className="bg-gray-900 rounded-2xl p-5 space-y-4">
+            <h2 className="text-white font-semibold text-base">Sucursal</h2>
+
+            {storeInfo && (
+              <div className="bg-gray-800 rounded-xl px-4 py-3 space-y-1 text-sm">
+                <p className="text-gray-400">
+                  Nombre: <span className="text-white">{storeInfo.name}</span>
+                </p>
+                <p className="text-gray-400">
+                  ID: <span className="text-white">{storeInfo.id}</span>
+                </p>
+                {storeInfo.location?.address_line && (
+                  <p className="text-gray-400">
+                    Dirección: <span className="text-white">{storeInfo.location.address_line}</span>
+                  </p>
+                )}
+                <p className="text-gray-400">
+                  External ID: <span className="text-white">{storeInfo.external_id}</span>
+                </p>
+              </div>
+            )}
+
+            {!storeInfo && !storeCargando && (
+              <p className="text-gray-500 text-sm">Cargá la sucursal para ver su estado.</p>
+            )}
+
+            {storeError && <p className="text-red-400 text-sm">{storeError}</p>}
+            {storeExito && <p className="text-green-400 text-sm">{storeExito}</p>}
+
+            <button
+              onClick={cargarSucursal}
+              disabled={storeCargando || storeEliminando}
+              className="w-full bg-gray-700 hover:bg-gray-600 active:bg-gray-800 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors text-sm"
+            >
+              {storeCargando ? "Cargando..." : "Ver sucursal"}
+            </button>
+
+            {storeInfo && (
+              <button
+                onClick={eliminarSucursal}
+                disabled={storeEliminando || storeCargando}
+                className="w-full bg-transparent hover:bg-red-950 active:bg-red-900 disabled:opacity-50 text-red-400 font-medium py-3 rounded-xl transition-colors text-sm border border-red-900"
+              >
+                {storeEliminando ? "Eliminando..." : "Eliminar sucursal"}
+              </button>
+            )}
+          </div>
+        )}
 
       </div>
     </div>

@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createHmac } from "crypto";
 import pool from "@/lib/db";
-import { getMpConfig } from "@/lib/mp";
+import { getMpConfig, invalidateMpConfig } from "@/lib/mp";
 
 export const config = { api: { bodyParser: true } };
 
@@ -82,6 +82,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (type === "order" && data?.id) {
       await procesarOrder(String(data.id));
+    } else if (type === "mp-connect") {
+      if (req.body.action === "application.deauthorized") {
+        await pool.query(
+          "UPDATE config SET mp_access_token = NULL, mp_refresh_token = NULL WHERE id = 1"
+        );
+        invalidateMpConfig();
+        console.log("mp-connect: aplicación desautorizada, token removido");
+      }
     }
   } catch (e) {
     console.error("Webhook error:", e);
