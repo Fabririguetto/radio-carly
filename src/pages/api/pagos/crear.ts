@@ -26,9 +26,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const externalRef = `wox-${idcliente}-${Date.now()}`;
   const mp = await getMpConfig();
 
-  const integrationData: Record<string, string> = {};
-  if (process.env.MP_PLATFORM_ID)   integrationData.platform_id   = process.env.MP_PLATFORM_ID;
-  if (process.env.MP_INTEGRATOR_ID) integrationData.integrator_id = process.env.MP_INTEGRATOR_ID;
+  // integration_data solo se envía si MP asignó un platform_id real
+  const integrationData = process.env.MP_PLATFORM_ID
+    ? {
+        platform_id: process.env.MP_PLATFORM_ID,
+        ...(process.env.MP_INTEGRATOR_ID ? { integrator_id: process.env.MP_INTEGRATOR_ID } : {}),
+      }
+    : null;
 
   const orderRes = await fetch("https://api.mercadopago.com/v1/orders", {
     method: "POST",
@@ -43,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       description: `${mp.nombreNegocio} — ${cliente.nombre}`,
       external_reference: externalRef,
       expiration_time: "PT2M",
-      ...(Object.keys(integrationData).length ? { integration_data: integrationData } : {}),
+      ...(integrationData ? { integration_data: integrationData } : {}),
       config: {
         qr: {
           external_pos_id: mp.posExternalId,
