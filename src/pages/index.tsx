@@ -15,6 +15,7 @@ type Sesion = {
   monto: number;
   hora_inicio: string;
   hora_fin: string;
+  sala_nombre?: string | null;
 };
 
 type Horario = {
@@ -22,6 +23,7 @@ type Horario = {
   hora_inicio: string;
   hora_fin: string;
   dia_semana: number;
+  sala_nombre?: string | null;
 };
 
 type Paso = "dni" | "pago" | "qr";
@@ -201,7 +203,7 @@ export default function Home() {
       const data = await res.json();
       const nuevoBalance = Number(cl.balance) + Number(data.monto);
       setCliente({ ...cl, balance: nuevoBalance });
-      setSesion({ ...data, idhorario: hor.idhorario, asistio: 1 });
+      setSesion({ ...data, idhorario: hor.idhorario, asistio: 1, sala_nombre: hor.sala_nombre });
       setMontoPagar(String(nuevoBalance));
       setPaso("pago");
     } catch {
@@ -352,6 +354,7 @@ export default function Home() {
                       <p className="text-gray-500 text-xs mt-1">
                         Incluye sesión de hoy: ${Number(sesion.monto).toLocaleString("es-AR")}
                         {sesion.asistio === 0 ? " (reserva)" : ""}
+                        {sesion.sala_nombre ? ` · ${sesion.sala_nombre}` : ""}
                       </p>
                     )}
                   </div>

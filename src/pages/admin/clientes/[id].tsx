@@ -4,7 +4,7 @@ import Link from "next/link";
 
 const DIAS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
-type Horario = { idhorario: number; dia_semana: number; hora_inicio: string; hora_fin: string };
+type Horario = { idhorario: number; dia_semana: number; hora_inicio: string; hora_fin: string; sala_nombre?: string | null };
 type Sesion = { idsesion: number; fecha: string; asistio: number; monto: number; hora_inicio: string; hora_fin: string };
 type Pago = { idpago: number; monto: number; estado: string; fecha: string };
 type Cliente = { idcliente: number; nombre: string; dni: string; ingreso: number; egreso: number; balance: number; activo: number };
@@ -106,10 +106,11 @@ export default function ClienteDetalle() {
             <div className="space-y-2">
               {horarios.map((h) => (
                 <div key={h.idhorario} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
-                  <span className="text-white text-sm">
-                    <span className="font-medium">{DIAS[h.dia_semana]}</span>
+                  <div className="text-sm">
+                    <span className="text-white font-medium">{DIAS[h.dia_semana]}</span>
                     <span className="text-gray-400 ml-2">{h.hora_inicio.slice(0, 5)} – {h.hora_fin.slice(0, 5)}</span>
-                  </span>
+                    {h.sala_nombre && <span className="text-gray-500 ml-2 text-xs">{h.sala_nombre}</span>}
+                  </div>
                   <button
                     onClick={() => eliminarHorario(h.idhorario)}
                     className="text-red-400 text-sm px-2 py-1 rounded-lg active:bg-red-900/30 transition-colors"
