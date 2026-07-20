@@ -3,12 +3,19 @@ import pool from "@/lib/db";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
+    const estado = String(req.query.estado ?? "activo");
+    const filtroActivo =
+      estado === "activo"   ? "WHERE c.activo = 1" :
+      estado === "inactivo" ? "WHERE c.activo = 0" :
+      "";
+
     const [rows] = await pool.query(
-      `SELECT c.idcliente, c.dni, c.nombre,
+      `SELECT c.idcliente, c.dni, c.nombre, c.activo,
               COALESCE(ct.balance, 0) AS balance
        FROM clientes c
        LEFT JOIN ctacte ct ON ct.idcliente = c.idcliente
-       ORDER BY c.nombre ASC`
+       ${filtroActivo}
+       ORDER BY c.nombre ASC`,
     );
     return res.status(200).json(rows);
   }
@@ -22,11 +29,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await conn.beginTransaction();
       const [result]: any = await conn.query(
         "INSERT INTO clientes (dni, nombre) VALUES (?, ?)",
-        [dni.trim(), nombre.trim()]
+        [dni.trim(), nombre.trim()],
       );
       await conn.query(
         "INSERT INTO ctacte (idcliente, ingreso, egreso, balance) VALUES (?, 0, 0, 0)",
-        [result.insertId]
+        [result.insertId],
       );
       await conn.commit();
       return res.status(201).json({ idcliente: result.insertId, dni, nombre });

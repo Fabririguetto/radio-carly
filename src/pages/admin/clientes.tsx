@@ -7,7 +7,10 @@ type Cliente = {
   dni: string;
   nombre: string;
   balance: number;
+  activo: number;
 };
+
+type EstadoFiltro = "activo" | "inactivo" | "todos";
 
 type Columna = "nombre" | "dni" | "balance";
 type Orden = "asc" | "desc";
@@ -29,15 +32,22 @@ export default function AdminClientes() {
   const [columna, setColumna] = useState<Columna>("nombre");
   const [orden, setOrden] = useState<Orden>("asc");
   const [formAbierto, setFormAbierto] = useState(false);
+  const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activo");
 
   useEffect(() => {
-    cargarClientes();
+    cargarClientes(estadoFiltro);
   }, []);
 
-  async function cargarClientes() {
-    const res = await fetch("/api/admin/clientes");
+  async function cargarClientes(estado: EstadoFiltro) {
+    const res = await fetch(`/api/admin/clientes?estado=${estado}`);
     if (res.status === 401) { router.replace("/admin"); return; }
     setClientes(await res.json());
+  }
+
+  function cambiarEstado(estado: EstadoFiltro) {
+    setEstadoFiltro(estado);
+    setFiltro("");
+    cargarClientes(estado);
   }
 
   async function crearCliente() {
@@ -56,7 +66,7 @@ export default function AdminClientes() {
       setExito(`Cliente "${nombre}" creado.`);
       setDni(""); setNombre("");
       setFormAbierto(false);
-      cargarClientes();
+      cargarClientes(estadoFiltro);
     }
     setCargando(false);
   }
@@ -159,6 +169,23 @@ export default function AdminClientes() {
           </div>
         )}
 
+        {/* Filtro por estado */}
+        <div className="flex gap-2">
+          {(["activo", "inactivo", "todos"] as EstadoFiltro[]).map((e) => (
+            <button
+              key={e}
+              onClick={() => cambiarEstado(e)}
+              className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors capitalize ${
+                estadoFiltro === e
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-800"
+              }`}
+            >
+              {e === "activo" ? "Activos" : e === "inactivo" ? "Inactivos" : "Todos"}
+            </button>
+          ))}
+        </div>
+
         {/* Buscador */}
         <div className="relative">
           <input
@@ -177,7 +204,9 @@ export default function AdminClientes() {
         {/* Lista */}
         <div className="bg-gray-900 rounded-2xl overflow-hidden">
           {clientes.length === 0 ? (
-            <p className="text-gray-500 text-sm p-5">No hay clientes registrados.</p>
+            <p className="text-gray-500 text-sm p-5">
+              {estadoFiltro === "inactivo" ? "No hay clientes desactivados." : "No hay clientes registrados."}
+            </p>
           ) : clientesFiltrados.length === 0 ? (
             <p className="text-gray-500 text-sm p-5">Sin resultados para "{filtro}".</p>
           ) : (

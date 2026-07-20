@@ -7,7 +7,7 @@ const DIAS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado
 type Horario = { idhorario: number; dia_semana: number; hora_inicio: string; hora_fin: string };
 type Sesion = { idsesion: number; fecha: string; asistio: number; monto: number; hora_inicio: string; hora_fin: string };
 type Pago = { idpago: number; monto: number; estado: string; fecha: string };
-type Cliente = { idcliente: number; nombre: string; dni: string; ingreso: number; egreso: number; balance: number };
+type Cliente = { idcliente: number; nombre: string; dni: string; ingreso: number; egreso: number; balance: number; activo: number };
 
 export default function ClienteDetalle() {
   const router = useRouter();
@@ -17,6 +17,7 @@ export default function ClienteDetalle() {
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -34,6 +35,18 @@ export default function ClienteDetalle() {
     setSesiones(detalle.sesiones);
     setPagos(detalle.pagos);
     setHorarios(await resHorarios.json());
+  }
+
+  async function toggleActivo() {
+    if (!cliente) return;
+    setToggling(true);
+    await fetch(`/api/admin/clientes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activo: cliente.activo === 1 ? 0 : 1 }),
+    });
+    await cargar();
+    setToggling(false);
   }
 
   async function eliminarHorario(idhorario: number) {
@@ -55,7 +68,14 @@ export default function ClienteDetalle() {
         <div className="flex items-center gap-3">
           <Link href="/admin/clientes" className="text-gray-400 text-sm py-2 pr-1">←</Link>
           <div>
-            <h1 className="text-white font-bold text-xl leading-tight">{cliente.nombre}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-white font-bold text-xl leading-tight">{cliente.nombre}</h1>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                cliente.activo ? "bg-green-600/20 text-green-400" : "bg-gray-600/30 text-gray-400"
+              }`}>
+                {cliente.activo ? "Activo" : "Inactivo"}
+              </span>
+            </div>
             <p className="text-gray-500 text-xs">DNI {cliente.dni}</p>
           </div>
         </div>
@@ -167,6 +187,27 @@ export default function ClienteDetalle() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Estado del cliente */}
+        <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
+          <h2 className="text-white font-semibold">Estado del cliente</h2>
+          <p className="text-gray-400 text-sm">
+            {cliente.activo
+              ? "El cliente puede registrar sesiones en el kiosco."
+              : "El cliente está desactivado y no aparece en el kiosco."}
+          </p>
+          <button
+            onClick={toggleActivo}
+            disabled={toggling}
+            className={`w-full font-semibold py-3 rounded-xl transition-colors disabled:opacity-50 ${
+              cliente.activo
+                ? "bg-red-700 hover:bg-red-600 active:bg-red-800 text-white"
+                : "bg-green-700 hover:bg-green-600 active:bg-green-800 text-white"
+            }`}
+          >
+            {toggling ? "Guardando..." : cliente.activo ? "Desactivar cliente" : "Reactivar cliente"}
+          </button>
         </div>
 
       </div>

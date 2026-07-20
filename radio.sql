@@ -15,6 +15,7 @@ CREATE TABLE `clientes` (
   `idcliente` int NOT NULL AUTO_INCREMENT,
   `dni`       varchar(20) NOT NULL,
   `nombre`    varchar(100) NOT NULL,
+  `activo`    tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`idcliente`),
   UNIQUE KEY `dni` (`dni`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

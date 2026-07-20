@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             COALESCE(ct.balance, 0) AS balance
      FROM clientes c
      LEFT JOIN ctacte ct ON ct.idcliente = c.idcliente
-     WHERE c.dni = ?`,
+     WHERE c.dni = ? AND c.activo = 1`,
     [dni],
   );
 
