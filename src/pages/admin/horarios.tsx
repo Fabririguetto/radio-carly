@@ -242,15 +242,34 @@ export default function AdminHorarios(){
   async function guardar(){
     if(!clienteId||!modal||modalDias.length===0){setModalError("Elegí al menos un día.");return;}
     setGuardando(true); setModalError("");
-    try{
-      await Promise.all(modalDias.map(dia=>
-        fetch(`/api/admin/clientes/${clienteId}/horarios`,{
+
+    const resultados = await Promise.all(modalDias.map(async dia=>{
+      try{
+        const res=await fetch(`/api/admin/clientes/${clienteId}/horarios`,{
           method:"POST",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({dia_semana:dia,hora_inicio:mInicio,hora_fin:mFin}),
-        })
-      ));
-      setModal(null); cargar();
-    }catch{setModalError("Error al guardar.");}
+        });
+        const data=await res.json();
+        return{dia,ok:res.ok,mensaje:data.error??""};
+      }catch{
+        return{dia,ok:false,mensaje:"Error de red"};
+      }
+    }));
+
+    const fallidos=resultados.filter(r=>!r.ok);
+    const exitosos=resultados.filter(r=>r.ok);
+
+    if(exitosos.length>0) cargar();
+
+    if(fallidos.length>0){
+      setModalError(
+        fallidos.map(r=>`${DIAS[r.dia]}: ${r.mensaje}`).join("\n")
+      );
+      setModalDias(fallidos.map(r=>r.dia));
+    }else{
+      setModal(null);
+    }
+
     setGuardando(false);
   }
   async function eliminar(id:number){
@@ -477,7 +496,13 @@ export default function AdminHorarios(){
               </div>
             </div>
 
-            {modalError&&<p className="text-red-400 text-sm">{modalError}</p>}
+            {modalError&&(
+              <div className="bg-red-900/20 border border-red-700/50 rounded-xl px-3 py-2.5 space-y-0.5">
+                {modalError.split("\n").map((l,i)=>(
+                  <p key={i} className="text-red-400 text-sm">{l}</p>
+                ))}
+              </div>
+            )}
             <div className="flex gap-3">
               <button onClick={()=>{setModal(null);setDropdownAbierto(false);}}
                 className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3.5 rounded-xl">

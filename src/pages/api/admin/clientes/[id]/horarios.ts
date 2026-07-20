@@ -26,14 +26,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Verificar solapamiento global (ningún cliente puede tener el mismo horario ocupado)
     const [solapados]: any = await pool.query(
-      `SELECT idhorario FROM horarios
-       WHERE dia_semana = ?
-         AND hora_inicio < ?
-         AND hora_fin > ?`,
+      `SELECT h.idhorario, c.nombre, h.hora_inicio, h.hora_fin
+       FROM horarios h
+       JOIN clientes c ON c.idcliente = h.idcliente
+       WHERE h.dia_semana = ?
+         AND h.hora_inicio < ?
+         AND h.hora_fin > ?`,
       [dia_semana, hora_fin, hora_inicio]
     );
     if ((solapados as any[]).length > 0) {
-      return res.status(409).json({ error: "Ese horario se solapa con uno ya existente en ese día" });
+      const s = solapados[0];
+      const hi = String(s.hora_inicio).slice(0, 5);
+      const hf = String(s.hora_fin).slice(0, 5);
+      return res.status(409).json({ error: `Ocupado por ${s.nombre} (${hi}–${hf})` });
     }
 
     const [result]: any = await pool.query(
