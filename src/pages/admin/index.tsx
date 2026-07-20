@@ -34,7 +34,6 @@ export default function AdminLogin() {
     if (res.status === 401 && data.error === "Contraseña incorrecta") {
       setPaso("password");
     } else if (res.ok) {
-      sessionStorage.setItem("admin", "1");
       router.push("/admin/clientes");
     } else {
       setError("DNI no autorizado.");
@@ -52,7 +51,6 @@ export default function AdminLogin() {
       body: JSON.stringify({ dni: dni.trim(), password: password.trim() }),
     });
     if (res.ok) {
-      sessionStorage.setItem("admin", "1");
       router.push("/admin/clientes");
     } else {
       setError("Contraseña incorrecta.");

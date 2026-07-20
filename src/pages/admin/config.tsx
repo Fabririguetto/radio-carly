@@ -29,6 +29,7 @@ export default function AdminConfig() {
   // Precios
   const [precioHora, setPrecioHora] = useState("");
   const [precioReserva, setPrecioReserva] = useState("");
+  const [deudaMaxima, setDeudaMaxima] = useState("0");
   const [exitoPrecios, setExitoPrecios] = useState("");
   const [errorPrecios, setErrorPrecios] = useState("");
 
@@ -53,11 +54,14 @@ export default function AdminConfig() {
   const [storeExito, setStoreExito] = useState("");
 
   useEffect(() => {
-    if (sessionStorage.getItem("admin") !== "1") { router.replace("/"); return; }
-
-    fetch("/api/admin/config").then((r) => r.json()).then((d) => {
+    fetch("/api/admin/config").then((r) => {
+      if (r.status === 401) { router.replace("/admin"); return r; }
+      return r;
+    }).then((r) => r.json()).then((d) => {
+      if (!d) return;
       setPrecioHora(String(d.precio_hora));
       setPrecioReserva(String(d.precio_reserva));
+      setDeudaMaxima(String(d.deuda_maxima ?? 0));
     });
 
     cargarEstadoMp();
@@ -92,9 +96,13 @@ export default function AdminConfig() {
     const res = await fetch("/api/admin/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ precio_hora: Number(precioHora), precio_reserva: Number(precioReserva) }),
+      body: JSON.stringify({
+        precio_hora:    Number(precioHora),
+        precio_reserva: Number(precioReserva),
+        deuda_maxima:   Number(deudaMaxima) || 0,
+      }),
     });
-    if (res.ok) setExitoPrecios("Precios actualizados correctamente.");
+    if (res.ok) setExitoPrecios("Configuración actualizada correctamente.");
     else setErrorPrecios("Error al guardar.");
   }
 
@@ -266,6 +274,18 @@ export default function AdminConfig() {
               onChange={(e) => setPrecioReserva(e.target.value)}
               className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-gray-400 text-sm">Límite de deuda ($) — 0 = sin límite</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={deudaMaxima}
+              onChange={(e) => setDeudaMaxima(e.target.value)}
+              className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-gray-600 text-xs">Si el cliente supera este monto, no puede registrar sesión hasta pagar.</p>
           </div>
           {errorPrecios && <p className="text-red-400 text-sm">{errorPrecios}</p>}
           {exitoPrecios && <p className="text-green-400 text-sm">{exitoPrecios}</p>}

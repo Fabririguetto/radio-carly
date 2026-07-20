@@ -20,7 +20,6 @@ export default function ClienteDetalle() {
 
   useEffect(() => {
     if (!id) return;
-    if (sessionStorage.getItem("admin") !== "1") { router.replace("/"); return; }
     cargar();
   }, [id]);
 
@@ -29,6 +28,7 @@ export default function ClienteDetalle() {
       fetch(`/api/admin/clientes/${id}`),
       fetch(`/api/admin/clientes/${id}/horarios`),
     ]);
+    if (resDetalle.status === 401) { router.replace("/admin"); return; }
     const detalle = await resDetalle.json();
     setCliente(detalle.cliente);
     setSesiones(detalle.sesiones);

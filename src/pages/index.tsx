@@ -188,6 +188,16 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idcliente: cl.idcliente, idhorario: hor.idhorario, asistio: true }),
       });
+
+      if (res.status === 403) {
+        const data = await res.json();
+        // Límite de deuda alcanzado: no registra sesión, pero permite pagar el saldo existente
+        setError(data.mensaje ?? "Deuda excedida. Pagá el saldo pendiente.");
+        setMontoPagar(String(cl.balance));
+        setPaso("pago");
+        return;
+      }
+
       const data = await res.json();
       const nuevoBalance = Number(cl.balance) + Number(data.monto);
       setCliente({ ...cl, balance: nuevoBalance });

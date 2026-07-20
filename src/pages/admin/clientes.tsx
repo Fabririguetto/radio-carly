@@ -31,12 +31,12 @@ export default function AdminClientes() {
   const [formAbierto, setFormAbierto] = useState(false);
 
   useEffect(() => {
-    if (sessionStorage.getItem("admin") !== "1") { router.replace("/"); return; }
     cargarClientes();
   }, []);
 
   async function cargarClientes() {
     const res = await fetch("/api/admin/clientes");
+    if (res.status === 401) { router.replace("/admin"); return; }
     setClientes(await res.json());
   }
 
@@ -86,6 +86,12 @@ export default function AdminClientes() {
         <div className="flex items-center justify-between">
           <h1 className="text-white font-bold text-xl">Clientes</h1>
           <div className="flex items-center gap-1">
+            <Link href="/admin/stats" title="Caja"
+              className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+              </svg>
+            </Link>
             <Link href="/admin/horarios" title="Calendario"
               className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -105,7 +111,7 @@ export default function AdminClientes() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
               </svg>
             </Link>
-            <button onClick={() => { sessionStorage.removeItem("admin"); router.push("/"); }} title="Salir"
+            <button onClick={async () => { await fetch("/api/admin/auth", { method: "DELETE" }); router.push("/"); }} title="Salir"
               className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-gray-800 transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />

@@ -52,6 +52,7 @@ CREATE TABLE `config` (
   `id`                  int NOT NULL AUTO_INCREMENT,
   `precio_hora`         decimal(10,2) NOT NULL DEFAULT '5000.00',
   `precio_reserva`      decimal(10,2) NOT NULL DEFAULT '2000.00',
+  `deuda_maxima`        decimal(10,2) NOT NULL DEFAULT '0.00',
   `nombre_negocio`      varchar(100)  DEFAULT NULL,
   `mp_access_token`     varchar(250)  DEFAULT NULL,
   `mp_collector_id`     varchar(50)   DEFAULT NULL,

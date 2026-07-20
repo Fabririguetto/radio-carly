@@ -192,7 +192,6 @@ export default function AdminHorarios(){
   const scrollRef=useRef<HTMLDivElement>(null);
 
   useEffect(()=>{
-    if(sessionStorage.getItem("admin")!=="1"){router.replace("/");return;}
     const d=new Date().getDay(); const ds=d===0?7:d;
     setHoy(ds); setDiaActivo(ds);
     function upd(){ const n=new Date(); setNowY((n.getHours()*60+n.getMinutes())/60*PX_HR); }
@@ -211,6 +210,7 @@ export default function AdminHorarios(){
 
   async function cargar(){
     const[rh,rc]=await Promise.all([fetch("/api/admin/horarios"),fetch("/api/admin/clientes")]);
+    if(rh.status===401){router.replace("/admin");return;}
     setHorarios(await rh.json()); setClientes(await rc.json()); setCargando(false);
   }
 
@@ -291,7 +291,7 @@ export default function AdminHorarios(){
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
             </svg>
           </Link>
-          <button onClick={()=>{sessionStorage.removeItem("admin");router.push("/");}} title="Salir"
+          <button onClick={async()=>{await fetch("/api/admin/auth",{method:"DELETE"});router.push("/");}} title="Salir"
             className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-gray-800 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />

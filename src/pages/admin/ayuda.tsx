@@ -43,8 +43,10 @@ export default function Ayuda() {
   const [listo, setListo] = useState(false);
 
   useEffect(() => {
-    if (sessionStorage.getItem("admin") !== "1") { router.replace("/"); return; }
-    setListo(true);
+    fetch("/api/admin/me").then((r) => {
+      if (r.status === 401) { router.replace("/admin"); return; }
+      setListo(true);
+    });
   }, []);
 
   if (!listo) return null;
