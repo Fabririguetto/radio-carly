@@ -180,12 +180,38 @@ export default function Ayuda() {
           <Bloque titulo="Precios">
             <Item label="Precio por hora" desc="monto que se cobra cuando el cliente asiste a su sesión." />
             <Item label="Precio de reserva" desc="monto que se cobra cuando el cliente no asiste (inasistencia automática)." />
+            <Item label="Límite de deuda" desc="si la deuda del cliente supera este monto, no puede registrar sesión hasta pagar. Con 0 no hay límite." />
           </Bloque>
           <Bloque titulo="Mercado Pago">
             <Item label="Conectar" desc="completá nombre del negocio, dirección, ciudad y provincia, luego hacé click en Conectar con Mercado Pago. Se abre una página de MP para autorizar." />
             <Item label="Estado Conectado" desc="los pagos QR funcionan. Se muestra el Collector ID y la caja asociada." />
             <Item label="Reconectar" desc="si el token vence o querés cambiar de cuenta, usá el botón Reconectar Mercado Pago." />
             <Item label="Desvincular" desc="deshabilita los cobros QR hasta que vuelvas a conectar." />
+          </Bloque>
+        </div>
+      ),
+    },
+    {
+      id: "caja",
+      titulo: "Dashboard de caja",
+      icono: "📊",
+      contenido: (
+        <div className="space-y-3">
+          <Bloque titulo="Acceso">
+            <Item label="Ícono de barras" desc='en la pantalla de Clientes, tocá el ícono de gráfico de barras (arriba a la derecha) para abrir el Dashboard de Caja.' />
+          </Bloque>
+          <Bloque titulo="Filtro de período">
+            <Item label="Hoy / Semana / Mes" desc="mostrás lo cobrado y las sesiones del período seleccionado con un toque." />
+            <Item label="Período personalizado" desc='elegí "Período", seleccioná fecha de inicio y fin, y presioná Aplicar.' />
+          </Bloque>
+          <Bloque titulo="Qué muestra">
+            <Item label="Cobrado" desc="total de pagos aprobados en el período elegido." />
+            <Item label="Sesiones" desc="cantidad de sesiones en el período: total, asistieron y ausentes." />
+            <Item label="Deudas pendientes" desc="los 10 clientes con mayor deuda activa (no depende del período)." />
+          </Bloque>
+          <Bloque titulo="Exportar CSV">
+            <Item label="Seleccioná el mes" desc="en la sección Exportar pagos, elegí el mes y descargá el archivo." />
+            <Item label="Formato" desc="CSV con BOM, compatible con Excel y Google Sheets. Incluye fecha, cliente, DNI, monto, estado y Payment ID." />
           </Bloque>
         </div>
       ),

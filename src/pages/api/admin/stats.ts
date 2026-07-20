@@ -1,36 +1,35 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import pool from '@/lib/db';
 
+function hoy() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).end();
 
-  const [
-    [cobradoHoy],
-    [cobradoSemana],
-    [cobradoMes],
-    [sesionesHoy],
-    deudores,
-  ] = await Promise.all([
+  const desde = String(req.query.desde ?? hoy());
+  const hasta = String(req.query.hasta ?? desde);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+    return res.status(400).json({ error: 'Formato de fecha inválido (YYYY-MM-DD)' });
+  }
+
+  const [[cobrado], [sesiones], deudores] = await Promise.all([
     pool.query(
       `SELECT COALESCE(SUM(monto), 0) AS total
-       FROM pagos WHERE estado = 'aprobado' AND DATE(fecha) = CURDATE()`,
-    ),
-    pool.query(
-      `SELECT COALESCE(SUM(monto), 0) AS total
-       FROM pagos WHERE estado = 'aprobado'
-         AND YEARWEEK(fecha, 1) = YEARWEEK(CURDATE(), 1)`,
-    ),
-    pool.query(
-      `SELECT COALESCE(SUM(monto), 0) AS total
-       FROM pagos WHERE estado = 'aprobado'
-         AND YEAR(fecha) = YEAR(CURDATE()) AND MONTH(fecha) = MONTH(CURDATE())`,
+       FROM pagos
+       WHERE estado = 'aprobado' AND DATE(fecha) BETWEEN ? AND ?`,
+      [desde, hasta],
     ),
     pool.query(
       `SELECT
          COUNT(*) AS total,
          SUM(asistio = 1) AS asistieron,
          SUM(asistio = 0) AS no_asistieron
-       FROM sesiones WHERE fecha = CURDATE()`,
+       FROM sesiones
+       WHERE fecha BETWEEN ? AND ?`,
+      [desde, hasta],
     ),
     pool.query(
       `SELECT c.nombre, c.dni, ct.balance
@@ -42,16 +41,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   ]) as any;
 
   return res.status(200).json({
-    cobrado: {
-      hoy:    Number((cobradoHoy as any[])[0].total),
-      semana: Number((cobradoSemana as any[])[0].total),
-      mes:    Number((cobradoMes as any[])[0].total),
-    },
+    cobrado: Number((cobrado as any[])[0].total),
     sesiones: {
-      total:          Number((sesionesHoy as any[])[0].total),
-      asistieron:     Number((sesionesHoy as any[])[0].asistieron ?? 0),
-      no_asistieron:  Number((sesionesHoy as any[])[0].no_asistieron ?? 0),
+      total:         Number((sesiones as any[])[0].total),
+      asistieron:    Number((sesiones as any[])[0].asistieron    ?? 0),
+      no_asistieron: Number((sesiones as any[])[0].no_asistieron ?? 0),
     },
-    deudores: deudores[0] as any[],
+    deudores: (deudores as any[][])[0],
   });
 }
