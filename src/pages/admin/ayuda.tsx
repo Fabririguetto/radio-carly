@@ -65,8 +65,8 @@ export default function Ayuda() {
           </Bloque>
           <Bloque titulo="Navegación principal">
             <Item label="Clientes" desc="lista de todos los clientes y sus deudas." />
-            <Item label="Calendario" desc="vista semanal de horarios fijos por sala." />
-            <Item label="Salas" desc="crear y administrar las salas del estudio." />
+            <Item label="Calendario" desc="vista semanal de horarios fijos por estudio." />
+            <Item label="Estudios" desc="crear y administrar los estudios." />
             <Item label="Configuración" desc="precios y conexión con Mercado Pago." />
           </Bloque>
         </div>
@@ -193,26 +193,26 @@ export default function Ayuda() {
       ),
     },
     {
-      id: "salas",
-      titulo: "Salas",
+      id: "estudios",
+      titulo: "Estudios",
       icono: "🏠",
       contenido: (
         <div className="space-y-3">
-          <Bloque titulo="Qué son las salas">
-            <p className="text-gray-400 text-sm">Cada sala es un espacio físico independiente del estudio. Los horarios de los clientes se asignan a una sala específica, lo que permite tener varios clientes al mismo horario en distintas salas sin conflicto.</p>
+          <Bloque titulo="Qué son los estudios">
+            <p className="text-gray-400 text-sm">Cada estudio es un espacio físico independiente. Los horarios de los clientes se asignan a un estudio específico, lo que permite tener varios clientes al mismo horario en distintos estudios sin conflicto.</p>
           </Bloque>
-          <Bloque titulo="Administrar salas">
-            <Item label="Nueva sala" desc="ingresá el nombre (ej: Sala A, Estudio 1) y guardá." />
-            <Item label="Renombrar" desc='hacé click en "Renombrar" al lado de la sala.' />
-            <Item label="Desactivar" desc="la sala deja de aparecer en el calendario y en el selector del formulario. Sus horarios existentes siguen en la base de datos." />
-            <Item label="Eliminar" desc="solo se puede eliminar una sala si no tiene horarios asignados. Si los tiene, primero desactivala." />
+          <Bloque titulo="Administrar estudios">
+            <Item label="Nuevo estudio" desc="ingresá el nombre (ej: Estudio A, Estudio 1) y guardá." />
+            <Item label="Renombrar" desc='hacé click en "Renombrar" al lado del estudio.' />
+            <Item label="Desactivar" desc="el estudio deja de aparecer en el calendario y en el selector del formulario. Sus horarios existentes siguen en la base de datos." />
+            <Item label="Eliminar" desc="solo se puede eliminar un estudio si no tiene horarios asignados. Si los tiene, primero desactivalo." />
           </Bloque>
-          <Bloque titulo="Salas en el calendario">
-            <Item label="Chips de filtro" desc="encima del grid aparecen los botones Todas / Sala A / Sala B (y las que hayas creado). Al elegir una sala solo se ven sus horarios." />
-            <Item label="Nueva asignación" desc="al agregar un horario desde el formulario, primero elegís la sala y luego los días y horarios. El sistema verifica solapamientos dentro de la misma sala." />
+          <Bloque titulo="Estudios en el calendario">
+            <Item label="Chips de filtro" desc="encima del grid aparecen los botones Todas / Estudio A / Estudio B (y los que hayas creado). Al elegir uno solo se ven sus horarios." />
+            <Item label="Nueva asignación" desc="al agregar un horario desde el formulario, primero elegís el estudio y luego los días y horarios. El sistema verifica solapamientos dentro del mismo estudio." />
           </Bloque>
-          <Bloque titulo="Salas en el kiosko">
-            <Item label="Sala asignada" desc='en el paso de pago se muestra "Incluye sesión de hoy: $X · Sala A" para que el cliente sepa adónde ir.' />
+          <Bloque titulo="Estudios en el kiosko">
+            <Item label="Estudio asignado" desc='en el paso de pago se muestra "Incluye sesión de hoy: $X · Estudio A" para que el cliente sepa adónde ir.' />
           </Bloque>
         </div>
       ),

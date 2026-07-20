@@ -121,10 +121,10 @@ ALTER TABLE ctacte AUTO_INCREMENT = 41;
 --         Lun  Mar  Mie  Jue  Vie  Sab  Dom
 -- 20:00:   8   16   23   11   26    1   33
 
--- idsala: 1=Sala A, 2=Sala B
--- Franjas pares → Sala B, franjas impares → Sala A, segundo día → Sala A
-INSERT INTO horarios (idcliente, idsala, dia_semana, hora_inicio, hora_fin) VALUES
--- Franja 08:00 → Sala A
+-- idestudio: 1=Estudio A, 2=Estudio B
+-- Franjas pares → Estudio B, franjas impares → Estudio A, segundo día → Estudio A
+INSERT INTO horarios (idcliente, idestudio, dia_semana, hora_inicio, hora_fin) VALUES
+-- Franja 08:00 → Estudio A
   ( 1, 1, 1, '08:00:00', '09:00:00'),
   ( 2, 1, 2, '08:00:00', '09:00:00'),
   ( 3, 1, 3, '08:00:00', '09:00:00'),
@@ -132,7 +132,7 @@ INSERT INTO horarios (idcliente, idsala, dia_semana, hora_inicio, hora_fin) VALU
   ( 5, 1, 5, '08:00:00', '09:00:00'),
   ( 6, 1, 6, '08:00:00', '09:00:00'),
   ( 7, 1, 7, '08:00:00', '09:00:00'),
--- Franja 10:00 → Sala B
+-- Franja 10:00 → Estudio B
   ( 8, 2, 1, '10:00:00', '11:00:00'),
   ( 9, 2, 2, '10:00:00', '11:00:00'),
   (10, 2, 3, '10:00:00', '11:00:00'),
@@ -140,7 +140,7 @@ INSERT INTO horarios (idcliente, idsala, dia_semana, hora_inicio, hora_fin) VALU
   (12, 2, 5, '10:00:00', '11:00:00'),
   (13, 2, 6, '10:00:00', '11:00:00'),
   (14, 2, 7, '10:00:00', '11:00:00'),
--- Franja 12:00 → Sala A
+-- Franja 12:00 → Estudio A
   (15, 1, 1, '12:00:00', '13:00:00'),
   (16, 1, 2, '12:00:00', '13:00:00'),
   (17, 1, 3, '12:00:00', '13:00:00'),
@@ -148,7 +148,7 @@ INSERT INTO horarios (idcliente, idsala, dia_semana, hora_inicio, hora_fin) VALU
   (19, 1, 5, '12:00:00', '13:00:00'),
   (20, 1, 6, '12:00:00', '13:00:00'),
   (21, 1, 7, '12:00:00', '13:00:00'),
--- Franja 14:00 → Sala B
+-- Franja 14:00 → Estudio B
   (22, 2, 1, '14:00:00', '15:00:00'),
   (23, 2, 2, '14:00:00', '15:00:00'),
   (24, 2, 3, '14:00:00', '15:00:00'),
@@ -156,7 +156,7 @@ INSERT INTO horarios (idcliente, idsala, dia_semana, hora_inicio, hora_fin) VALU
   (26, 2, 5, '14:00:00', '15:00:00'),
   (27, 2, 6, '14:00:00', '15:00:00'),
   (28, 2, 7, '14:00:00', '15:00:00'),
--- Franja 16:00 → Sala A
+-- Franja 16:00 → Estudio A
   (29, 1, 1, '16:00:00', '17:00:00'),
   (30, 1, 2, '16:00:00', '17:00:00'),
   (31, 1, 3, '16:00:00', '17:00:00'),
@@ -164,13 +164,13 @@ INSERT INTO horarios (idcliente, idsala, dia_semana, hora_inicio, hora_fin) VALU
   (33, 1, 5, '16:00:00', '17:00:00'),
   (34, 1, 6, '16:00:00', '17:00:00'),
   (35, 1, 7, '16:00:00', '17:00:00'),
--- Franja 18:00 → Sala B (solo Lun–Vie)
+-- Franja 18:00 → Estudio B (solo Lun–Vie)
   (36, 2, 1, '18:00:00', '19:00:00'),
   (37, 2, 2, '18:00:00', '19:00:00'),
   (38, 2, 3, '18:00:00', '19:00:00'),
   (39, 2, 4, '18:00:00', '19:00:00'),
   (40, 2, 5, '18:00:00', '19:00:00'),
--- Segundo día en franja 20:00 → Sala A (libre en todos los días)
+-- Segundo día en franja 20:00 → Estudio A (libre en todos los días)
   ( 8, 1, 2, '20:00:00', '21:00:00'),  -- Lucía: Lun+Mar
   (16, 1, 4, '20:00:00', '21:00:00'),  -- Verónica: Mar+Jue
   (23, 1, 3, '20:00:00', '21:00:00'),  -- Leandro: Mar+Mie

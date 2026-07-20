@@ -8,22 +8,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { nombre, activo } = req.body;
     if (nombre !== undefined) {
       if (!nombre.trim()) return res.status(400).json({ error: "nombre no puede estar vacío" });
-      await pool.query("UPDATE salas SET nombre = ? WHERE idsala = ?", [nombre.trim(), id]);
+      await pool.query("UPDATE estudios SET nombre = ? WHERE idestudio = ?", [nombre.trim(), id]);
     }
     if (activo !== undefined) {
-      await pool.query("UPDATE salas SET activo = ? WHERE idsala = ?", [activo ? 1 : 0, id]);
+      await pool.query("UPDATE estudios SET activo = ? WHERE idestudio = ?", [activo ? 1 : 0, id]);
     }
     return res.status(200).json({ ok: true });
   }
 
   if (req.method === "DELETE") {
     const [used]: any = await pool.query(
-      "SELECT COUNT(*) AS cnt FROM horarios WHERE idsala = ?", [id]
+      "SELECT COUNT(*) AS cnt FROM horarios WHERE idestudio = ?", [id]
     );
     if ((used as any[])[0].cnt > 0) {
-      return res.status(409).json({ error: "La sala tiene horarios asignados. Reasignalos antes de eliminarla." });
+      return res.status(409).json({ error: "El estudio tiene horarios asignados. Reasignalos antes de eliminarlo." });
     }
-    await pool.query("DELETE FROM salas WHERE idsala = ?", [id]);
+    await pool.query("DELETE FROM estudios WHERE idestudio = ?", [id]);
     return res.status(200).json({ ok: true });
   }
 

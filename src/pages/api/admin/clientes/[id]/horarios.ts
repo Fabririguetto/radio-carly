@@ -9,9 +9,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "GET") {
     const [rows] = await pool.query(
       `SELECT h.idhorario, h.dia_semana, h.hora_inicio, h.hora_fin,
-              h.idsala, s.nombre AS sala_nombre
+              h.idestudio, s.nombre AS estudio_nombre
        FROM horarios h
-       LEFT JOIN salas s ON s.idsala = h.idsala
+       LEFT JOIN estudios s ON s.idestudio = h.idestudio
        WHERE h.idcliente = ?
        ORDER BY h.dia_semana, h.hora_inicio`,
       [id]
@@ -21,24 +21,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
-    const { dia_semana, hora_inicio, hora_fin, idsala } = req.body;
-    if (!dia_semana || !hora_inicio || !hora_fin || !idsala) {
-      return res.status(400).json({ error: "dia_semana, hora_inicio, hora_fin e idsala son requeridos" });
+    const { dia_semana, hora_inicio, hora_fin, idestudio } = req.body;
+    if (!dia_semana || !hora_inicio || !hora_fin || !idestudio) {
+      return res.status(400).json({ error: "dia_semana, hora_inicio, hora_fin e idestudio son requeridos" });
     }
     if (hora_fin <= hora_inicio) {
       return res.status(400).json({ error: "La hora de fin debe ser posterior a la hora de inicio" });
     }
 
-    // Verificar solapamiento dentro de la misma sala
+    // Verificar solapamiento dentro del mismo estudio
     const [solapados]: any = await pool.query(
       `SELECT h.idhorario, c.nombre, h.hora_inicio, h.hora_fin
        FROM horarios h
        JOIN clientes c ON c.idcliente = h.idcliente
-       WHERE h.idsala = ?
+       WHERE h.idestudio = ?
          AND h.dia_semana = ?
          AND h.hora_inicio < ?
          AND h.hora_fin > ?`,
-      [idsala, dia_semana, hora_fin, hora_inicio]
+      [idestudio, dia_semana, hora_fin, hora_inicio]
     );
     if ((solapados as any[]).length > 0) {
       const s = solapados[0];
@@ -48,10 +48,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const [result]: any = await pool.query(
-      "INSERT INTO horarios (idcliente, idsala, dia_semana, hora_inicio, hora_fin) VALUES (?, ?, ?, ?, ?)",
-      [id, idsala, dia_semana, hora_inicio, hora_fin]
+      "INSERT INTO horarios (idcliente, idestudio, dia_semana, hora_inicio, hora_fin) VALUES (?, ?, ?, ?, ?)",
+      [id, idestudio, dia_semana, hora_inicio, hora_fin]
     );
-    return res.status(201).json({ idhorario: result.insertId, idcliente: id, idsala, dia_semana, hora_inicio, hora_fin, dia_nombre: DIAS[dia_semana] });
+    return res.status(201).json({ idhorario: result.insertId, idcliente: id, idestudio, dia_semana, hora_inicio, hora_fin, dia_nombre: DIAS[dia_semana] });
   }
 
   res.status(405).end();

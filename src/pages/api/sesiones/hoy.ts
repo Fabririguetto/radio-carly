@@ -15,10 +15,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const [rows] = await pool.query(
     `SELECT s.idsesion, s.idhorario, s.fecha, s.asistio, s.monto,
             h.hora_inicio, h.hora_fin, h.dia_semana,
-            h.idsala, sa.nombre AS sala_nombre
+            h.idestudio, sa.nombre AS estudio_nombre
      FROM sesiones s
      JOIN horarios h ON h.idhorario = s.idhorario
-     LEFT JOIN salas sa ON sa.idsala = h.idsala
+     LEFT JOIN estudios sa ON sa.idestudio = h.idestudio
      WHERE s.idcliente = ? AND s.fecha = CURDATE()`,
     [idcliente]
   );
@@ -28,9 +28,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (sesiones.length === 0) {
     const [horarios] = await pool.query(
       `SELECT h.idhorario, h.hora_inicio, h.hora_fin, h.dia_semana,
-              h.idsala, sa.nombre AS sala_nombre
+              h.idsala, sa.nombre AS estudio_nombre
        FROM horarios h
-       LEFT JOIN salas sa ON sa.idsala = h.idsala
+       LEFT JOIN estudios sa ON sa.idestudio = h.idestudio
        WHERE h.idcliente = ?
          AND h.dia_semana = (
            CASE DAYOFWEEK(CURDATE())

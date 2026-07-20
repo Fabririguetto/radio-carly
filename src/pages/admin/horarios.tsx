@@ -21,9 +21,9 @@ const COLORES = [
   { slot: "bg-teal-600/85 border-teal-400 text-white",      badge: "bg-teal-600/30 border-teal-500 text-teal-300" },
 ];
 
-type Horario  = { idhorario:number; dia_semana:number; hora_inicio:string; hora_fin:string; idcliente:number; nombre:string; idsala:number|null; sala_nombre:string|null };
+type Horario  = { idhorario:number; dia_semana:number; hora_inicio:string; hora_fin:string; idcliente:number; nombre:string; idestudio:number|null; estudio_nombre:string|null };
 type Cliente  = { idcliente:number; nombre:string; dni:string };
-type Sala     = { idsala:number; nombre:string; activo:number };
+type Estudio  = { idestudio:number; nombre:string; activo:number };
 type Modal    = { horaInicio:string; horaFin:string } | null;
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -176,12 +176,12 @@ export default function AdminHorarios(){
   const router=useRouter();
   const [horarios,setHorarios]=useState<Horario[]>([]);
   const [clientes,setClientes]=useState<Cliente[]>([]);
-  const [salas,setSalas]=useState<Sala[]>([]);
-  const [salaFiltro,setSalaFiltro]=useState<number|null>(null);
+  const [estudios,setEstudios]=useState<Estudio[]>([]);
+  const [estudioFiltro,setEstudioFiltro]=useState<number|null>(null);
   const [cargando,setCargando]=useState(true);
   const [modal,setModal]=useState<Modal>(null);
   const [clienteId,setClienteId]=useState("");
-  const [salaId,setSalaId]=useState("");
+  const [estudioId,setEstudioId]=useState("");
   const [mInicio,setMInicio]=useState("");
   const [mFin,setMFin]=useState("");
   const [modalDias,setModalDias]=useState<number[]>([]);
@@ -216,19 +216,19 @@ export default function AdminHorarios(){
     const[rh,rc,rs]=await Promise.all([
       fetch("/api/admin/horarios"),
       fetch("/api/admin/clientes"),
-      fetch("/api/admin/salas"),
+      fetch("/api/admin/estudios"),
     ]);
     if(rh.status===401){router.replace("/admin");return;}
     setHorarios(await rh.json());
     setClientes(await rc.json());
-    setSalas(await rs.json());
+    setEstudios(await rs.json());
     setCargando(false);
   }
 
   const clienteIds=[...new Set(horarios.map(h=>h.idcliente))];
   const colorIdx:Record<number,number>={};
   clienteIds.forEach((id,i)=>{colorIdx[id]=i%COLORES.length;});
-  const horariosFiltrados=salaFiltro!==null?horarios.filter(h=>h.idsala===salaFiltro):horarios;
+  const horariosFiltrados=estudioFiltro!==null?horarios.filter(h=>h.idestudio===estudioFiltro):horarios;
   const porDia:Record<number,Horario[]>={};
   for(let d=1;d<=7;d++)porDia[d]=[];
   horariosFiltrados.forEach(h=>porDia[h.dia_semana]?.push(h));
@@ -243,7 +243,7 @@ export default function AdminHorarios(){
     setBusquedaCliente(preNombre);
     setDropdownAbierto(false);
     setModalDias(dia!=null?[dia]:[]);
-    setSalaId(salaFiltro!==null?String(salaFiltro):"");
+    setEstudioId(estudioFiltro!==null?String(estudioFiltro):"");
     setModalError(""); setSlotActivo(null);
   }
   function handleSel(dia:number,s:string,e:string){ abrirModal(dia,s,e); }
@@ -253,14 +253,14 @@ export default function AdminHorarios(){
   }
 
   async function guardar(){
-    if(!clienteId||!modal||modalDias.length===0||!salaId){setModalError("Elegí cliente, sala y al menos un día.");return;}
+    if(!clienteId||!modal||modalDias.length===0||!estudioId){setModalError("Elegí cliente, estudio y al menos un día.");return;}
     setGuardando(true); setModalError("");
 
     const resultados = await Promise.all(modalDias.map(async dia=>{
       try{
         const res=await fetch(`/api/admin/clientes/${clienteId}/horarios`,{
           method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({dia_semana:dia,hora_inicio:mInicio,hora_fin:mFin,idsala:Number(salaId)}),
+          body:JSON.stringify({dia_semana:dia,hora_inicio:mInicio,hora_fin:mFin,idestudio:Number(estudioId)}),
         });
         const data=await res.json();
         return{dia,ok:res.ok,mensaje:data.error??""};
@@ -310,7 +310,7 @@ export default function AdminHorarios(){
             className="text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-3 py-1.5 rounded-lg font-semibold text-sm mr-1">
             + Agregar
           </button>
-          <Link href="/admin/salas" title="Administrar salas"
+          <Link href="/admin/estudios" title="Administrar estudios"
             className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
@@ -347,25 +347,25 @@ export default function AdminHorarios(){
         /* Contenedor principal — flex-1 + min-h-0 para que los hijos puedan acotar su altura */
         <div className="flex-1 min-h-0 flex flex-col">
 
-          {/* Chips de sala */}
-          {salas.length>0&&(
+          {/* Chips de estudio */}
+          {estudios.length>0&&(
             <div className="flex-shrink-0 flex gap-2 px-3 py-2 border-b border-gray-800 overflow-x-auto">
               <button
-                onClick={()=>setSalaFiltro(null)}
+                onClick={()=>setEstudioFiltro(null)}
                 className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                  salaFiltro===null
+                  estudioFiltro===null
                     ?"bg-white/10 border-white/30 text-white"
                     :"border-gray-700 text-gray-400 hover:text-white"
                 }`}
               >
                 Todas
               </button>
-              {salas.filter(s=>s.activo).map(s=>(
+              {estudios.filter(s=>s.activo).map(s=>(
                 <button
-                  key={s.idsala}
-                  onClick={()=>setSalaFiltro(s.idsala)}
+                  key={s.idestudio}
+                  onClick={()=>setEstudioFiltro(s.idestudio)}
                   className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    salaFiltro===s.idsala
+                    estudioFiltro===s.idestudio
                       ?"bg-blue-600 border-blue-500 text-white"
                       :"border-gray-700 text-gray-400 hover:text-white"
                   }`}
@@ -499,20 +499,20 @@ export default function AdminHorarios(){
               </div>
             </div>
 
-            {/* Sala */}
+            {/* Estudio */}
             <div className="space-y-2">
-              <label className="text-gray-400 text-xs uppercase tracking-wide">Sala</label>
-              {salas.filter(s=>s.activo).length===0?(
+              <label className="text-gray-400 text-xs uppercase tracking-wide">Estudio</label>
+              {estudios.filter(s=>s.activo).length===0?(
                 <p className="text-gray-500 text-sm">
-                  No hay salas activas.{" "}
-                  <Link href="/admin/salas" className="text-blue-400 underline">Crear sala</Link>
+                  No hay estudios activos.{" "}
+                  <Link href="/admin/estudios" className="text-blue-400 underline">Crear estudio</Link>
                 </p>
               ):(
                 <div className="flex flex-wrap gap-2">
-                  {salas.filter(s=>s.activo).map(s=>(
-                    <button key={s.idsala} onClick={()=>setSalaId(String(s.idsala))}
+                  {estudios.filter(s=>s.activo).map(s=>(
+                    <button key={s.idestudio} onClick={()=>setEstudioId(String(s.idestudio))}
                       className={`text-sm font-medium px-4 py-2 rounded-xl border transition-colors ${
-                        salaId===String(s.idsala)
+                        estudioId===String(s.idestudio)
                           ?"bg-blue-600 border-blue-500 text-white"
                           :"border-gray-700 text-gray-400 hover:text-white hover:border-gray-600"
                       }`}
