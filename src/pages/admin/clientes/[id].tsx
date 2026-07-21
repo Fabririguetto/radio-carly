@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import AdminNav from "@/components/AdminNav";
 
 const DIAS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
@@ -61,7 +62,7 @@ export default function ClienteDetalle() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-10">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
       <div className="max-w-2xl mx-auto space-y-4">
 
         {/* Header */}
@@ -212,6 +213,7 @@ export default function ClienteDetalle() {
         </div>
 
       </div>
+      <AdminNav />
     </div>
   );
 }

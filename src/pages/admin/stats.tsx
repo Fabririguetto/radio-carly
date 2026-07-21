@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/router";
-import Link from "next/link";
+import AdminNav from "@/components/AdminNav";
 
 type Stats = {
   cobrado: number;
@@ -125,14 +125,11 @@ export default function AdminStats() {
   const rangoActual = rangoDePeriodo(periodo, desde, hasta);
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-10">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
       <div className="max-w-lg mx-auto space-y-5">
 
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <Link href="/admin/clientes" className="text-gray-400 text-sm py-2 pr-2">← Volver</Link>
-          <h1 className="text-white font-bold text-xl">Caja</h1>
-        </div>
+        <h1 className="text-white font-bold text-xl">Caja</h1>
 
         {/* Selector de período */}
         <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
@@ -268,6 +265,7 @@ export default function AdminStats() {
         </div>
 
       </div>
+      <AdminNav />
     </div>
   );
 }

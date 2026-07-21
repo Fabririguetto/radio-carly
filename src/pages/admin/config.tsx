@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import Link from "next/link";
+import AdminNav from "@/components/AdminNav";
 
 interface MpEstado {
   configurado: boolean;
@@ -242,13 +242,10 @@ export default function AdminConfig() {
     : null;
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
       <div className="max-w-sm mx-auto space-y-6">
 
-        <div className="flex items-center gap-3">
-          <Link href="/admin/clientes" className="text-gray-400 text-sm py-2 pr-2">← Volver</Link>
-          <h1 className="text-white font-bold text-xl">Configuración</h1>
-        </div>
+        <h1 className="text-white font-bold text-xl">Configuración</h1>
 
         {/* Precios */}
         <div className="bg-gray-900 rounded-2xl p-5 space-y-4">
@@ -478,6 +475,7 @@ export default function AdminConfig() {
         )}
 
       </div>
+      <AdminNav />
     </div>
   );
 }

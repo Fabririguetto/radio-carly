@@ -1,172 +1,171 @@
-CREATE DATABASE IF NOT EXISTS `radio` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE DATABASE  IF NOT EXISTS `radio` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
 USE `radio`;
+-- MySQL dump 10.13  Distrib 8.0.43, for Win64 (x86_64)
+--
+-- Host: localhost    Database: radio
+-- ------------------------------------------------------
+-- Server version	8.0.43
 
-SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `pagos`;
-DROP TABLE IF EXISTS `sesiones`;
-DROP TABLE IF EXISTS `horarios`;
-DROP TABLE IF EXISTS `estudios`;
-DROP TABLE IF EXISTS `ctacte`;
-DROP TABLE IF EXISTS `config`;
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!50503 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `clientes`
+--
+
 DROP TABLE IF EXISTS `clientes`;
-SET FOREIGN_KEY_CHECKS = 1;
-
--- clientes
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `clientes` (
   `idcliente` int NOT NULL AUTO_INCREMENT,
-  `dni`       varchar(20) NOT NULL,
-  `nombre`    varchar(100) NOT NULL,
-  `activo`    tinyint(1) NOT NULL DEFAULT 1,
+  `dni` varchar(20) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`idcliente`),
   UNIQUE KEY `dni` (`dni`)
+) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `config`
+--
+
+DROP TABLE IF EXISTS `config`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `config` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `precio_hora` decimal(10,2) NOT NULL DEFAULT '5000.00',
+  `precio_reserva` decimal(10,2) NOT NULL DEFAULT '2000.00',
+  `deuda_maxima` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `nombre_negocio` varchar(100) DEFAULT NULL,
+  `mp_access_token` varchar(250) DEFAULT NULL,
+  `mp_collector_id` varchar(50) DEFAULT NULL,
+  `mp_pos_external_id` varchar(50) DEFAULT NULL,
+  `mp_webhook_secret` varchar(250) DEFAULT NULL,
+  `mp_refresh_token` varchar(500) DEFAULT NULL,
+  `mp_token_expires_at` datetime DEFAULT NULL,
+  `direccion` varchar(200) DEFAULT NULL,
+  `ciudad` varchar(100) DEFAULT NULL,
+  `provincia` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `clientes` (`idcliente`, `dni`, `nombre`) VALUES
-  (1, '44810049', 'Fabricio Riguetto'),
-  (2, '30123456', 'Ana García'),
-  (3, '25678901', 'Luis Martínez'),
-  (4, '37456789', 'María López'),
-  (5, '20987654', 'Carlos Pérez');
+--
+-- Table structure for table `ctacte`
+--
 
--- ctacte
--- balance = egreso - ingreso (deuda actual del cliente)
+DROP TABLE IF EXISTS `ctacte`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `ctacte` (
-  `idctacte`  int NOT NULL AUTO_INCREMENT,
+  `idctacte` int NOT NULL AUTO_INCREMENT,
   `idcliente` int NOT NULL,
-  `ingreso`   decimal(10,2) NOT NULL DEFAULT '0.00',
-  `egreso`    decimal(10,2) NOT NULL DEFAULT '0.00',
-  `balance`   decimal(10,2) NOT NULL DEFAULT '0.00',
+  `ingreso` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `egreso` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `balance` decimal(10,2) NOT NULL DEFAULT '0.00',
   PRIMARY KEY (`idctacte`),
   UNIQUE KEY `idcliente` (`idcliente`),
   CONSTRAINT `ctacte_ibfk_1` FOREIGN KEY (`idcliente`) REFERENCES `clientes` (`idcliente`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `ctacte` (`idcliente`, `ingreso`, `egreso`, `balance`) VALUES
-  (1, 1500.00, 4500.00, 3000.00),
-  (2, 0.00,    1500.00, 1500.00),
-  (3, 3000.00, 3000.00, 0.00),
-  (4, 0.00,    0.00,    0.00),
-  (5, 1000.00, 4000.00, 3000.00);
+--
+-- Table structure for table `estudios`
+--
 
--- config
--- La fila id=1 se crea automáticamente la primera vez que el admin guarda precios o datos del negocio
-CREATE TABLE `config` (
-  `id`                  int NOT NULL AUTO_INCREMENT,
-  `precio_hora`         decimal(10,2) NOT NULL DEFAULT '5000.00',
-  `precio_reserva`      decimal(10,2) NOT NULL DEFAULT '2000.00',
-  `deuda_maxima`        decimal(10,2) NOT NULL DEFAULT '0.00',
-  `nombre_negocio`      varchar(100)  DEFAULT NULL,
-  `mp_access_token`     varchar(250)  DEFAULT NULL,
-  `mp_collector_id`     varchar(50)   DEFAULT NULL,
-  `mp_pos_external_id`  varchar(50)   DEFAULT NULL,
-  `mp_webhook_secret`   varchar(250)  DEFAULT NULL,
-  `mp_refresh_token`    varchar(500)  DEFAULT NULL,
-  `mp_token_expires_at` datetime      DEFAULT NULL,
-  `direccion`           varchar(200)  DEFAULT NULL,
-  `ciudad`              varchar(100)  DEFAULT NULL,
-  `provincia`           varchar(100)  DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- Sin datos iniciales: la fila se crea sola al guardar precios o datos del negocio desde el panel
-
--- estudios
+DROP TABLE IF EXISTS `estudios`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `estudios` (
   `idestudio` int NOT NULL AUTO_INCREMENT,
-  `nombre`    varchar(100) NOT NULL,
-  `activo`    tinyint(1) NOT NULL DEFAULT 1,
+  `nombre` varchar(100) NOT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`idestudio`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `estudios` (`idestudio`, `nombre`) VALUES (1, 'Estudio A'), (2, 'Estudio B');
+--
+-- Table structure for table `horarios`
+--
 
--- horarios
--- dia_semana: 1=lunes, 2=martes, 3=miércoles, 4=jueves, 5=viernes, 6=sábado, 7=domingo
+DROP TABLE IF EXISTS `horarios`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `horarios` (
-  `idhorario`   int NOT NULL AUTO_INCREMENT,
-  `idcliente`   int NOT NULL,
-  `idestudio`   int DEFAULT NULL,
-  `dia_semana`  tinyint NOT NULL,
+  `idhorario` int NOT NULL AUTO_INCREMENT,
+  `idcliente` int NOT NULL,
+  `idestudio` int DEFAULT NULL,
+  `dia_semana` tinyint NOT NULL,
   `hora_inicio` time NOT NULL,
-  `hora_fin`    time NOT NULL,
+  `hora_fin` time NOT NULL,
   PRIMARY KEY (`idhorario`),
   KEY `idcliente` (`idcliente`),
   KEY `idestudio` (`idestudio`),
   CONSTRAINT `horarios_ibfk_1` FOREIGN KEY (`idcliente`) REFERENCES `clientes` (`idcliente`),
   CONSTRAINT `horarios_ibfk_2` FOREIGN KEY (`idestudio`) REFERENCES `estudios` (`idestudio`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=48 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- Fabricio: todos los días 19:00-20:00 (Estudio A)
-INSERT INTO `horarios` (`idcliente`, `idestudio`, `dia_semana`, `hora_inicio`, `hora_fin`) VALUES
-  (1, 1, 1, '19:00:00', '20:00:00'),
-  (1, 1, 2, '19:00:00', '20:00:00'),
-  (1, 1, 3, '19:00:00', '20:00:00'),
-  (1, 1, 4, '19:00:00', '20:00:00'),
-  (1, 1, 5, '19:00:00', '20:00:00'),
-  (1, 1, 6, '19:00:00', '20:00:00'),
-  (1, 1, 7, '19:00:00', '20:00:00');
--- Ana: todos los días 18:00-19:00 (Estudio B)
-INSERT INTO `horarios` (`idcliente`, `idestudio`, `dia_semana`, `hora_inicio`, `hora_fin`) VALUES
-  (2, 2, 1, '18:00:00', '19:00:00'),
-  (2, 2, 2, '18:00:00', '19:00:00'),
-  (2, 2, 3, '18:00:00', '19:00:00'),
-  (2, 2, 4, '18:00:00', '19:00:00'),
-  (2, 2, 5, '18:00:00', '19:00:00'),
-  (2, 2, 6, '18:00:00', '19:00:00'),
-  (2, 2, 7, '18:00:00', '19:00:00');
--- Luis: todos los días 10:00-11:00 (Estudio A)
-INSERT INTO `horarios` (`idcliente`, `idestudio`, `dia_semana`, `hora_inicio`, `hora_fin`) VALUES
-  (3, 1, 1, '10:00:00', '11:00:00'),
-  (3, 1, 2, '10:00:00', '11:00:00'),
-  (3, 1, 3, '10:00:00', '11:00:00'),
-  (3, 1, 4, '10:00:00', '11:00:00'),
-  (3, 1, 5, '10:00:00', '11:00:00'),
-  (3, 1, 6, '10:00:00', '11:00:00'),
-  (3, 1, 7, '10:00:00', '11:00:00');
--- María: todos los días 15:00-16:00 (Estudio B)
-INSERT INTO `horarios` (`idcliente`, `idestudio`, `dia_semana`, `hora_inicio`, `hora_fin`) VALUES
-  (4, 2, 1, '15:00:00', '16:00:00'),
-  (4, 2, 2, '15:00:00', '16:00:00'),
-  (4, 2, 3, '15:00:00', '16:00:00'),
-  (4, 2, 4, '15:00:00', '16:00:00'),
-  (4, 2, 5, '15:00:00', '16:00:00'),
-  (4, 2, 6, '15:00:00', '16:00:00'),
-  (4, 2, 7, '15:00:00', '16:00:00');
--- Carlos: todos los días 20:00-21:00 (Estudio A)
-INSERT INTO `horarios` (`idcliente`, `idestudio`, `dia_semana`, `hora_inicio`, `hora_fin`) VALUES
-  (5, 1, 1, '20:00:00', '21:00:00'),
-  (5, 1, 2, '20:00:00', '21:00:00'),
-  (5, 1, 3, '20:00:00', '21:00:00'),
-  (5, 1, 4, '20:00:00', '21:00:00'),
-  (5, 1, 5, '20:00:00', '21:00:00'),
-  (5, 1, 6, '20:00:00', '21:00:00'),
-  (5, 1, 7, '20:00:00', '21:00:00');
+--
+-- Table structure for table `pagos`
+--
 
--- sesiones
-CREATE TABLE `sesiones` (
-  `idsesion`  int NOT NULL AUTO_INCREMENT,
-  `idcliente` int NOT NULL,
-  `idhorario` int NOT NULL,
-  `fecha`     date NOT NULL,
-  `asistio`   tinyint(1) DEFAULT NULL,
-  `monto`     decimal(10,2) NOT NULL,
-  PRIMARY KEY (`idsesion`),
-  UNIQUE KEY `sesion_unica` (`idhorario`, `fecha`),
-  KEY `idcliente` (`idcliente`),
-  CONSTRAINT `sesiones_ibfk_1` FOREIGN KEY (`idcliente`) REFERENCES `clientes` (`idcliente`),
-  CONSTRAINT `sesiones_ibfk_2` FOREIGN KEY (`idhorario`) REFERENCES `horarios` (`idhorario`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- pagos
+DROP TABLE IF EXISTS `pagos`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `pagos` (
-  `idpago`        int NOT NULL AUTO_INCREMENT,
-  `idcliente`     int NOT NULL,
-  `monto`         decimal(10,2) NOT NULL,
-  `mp_order_id`   varchar(255) DEFAULT NULL,
+  `idpago` int NOT NULL AUTO_INCREMENT,
+  `idcliente` int NOT NULL,
+  `monto` decimal(10,2) NOT NULL,
+  `mp_order_id` varchar(255) DEFAULT NULL,
   `mp_payment_id` varchar(255) DEFAULT NULL,
-  `estado`        enum('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
-  `fecha`         datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `estado` enum('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
+  `fecha` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`idpago`),
   KEY `idcliente` (`idcliente`),
   CONSTRAINT `pagos_ibfk_1` FOREIGN KEY (`idcliente`) REFERENCES `clientes` (`idcliente`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `sesiones`
+--
+
+DROP TABLE IF EXISTS `sesiones`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sesiones` (
+  `idsesion` int NOT NULL AUTO_INCREMENT,
+  `idcliente` int NOT NULL,
+  `idhorario` int NOT NULL,
+  `fecha` date NOT NULL,
+  `asistio` tinyint(1) DEFAULT NULL,
+  `monto` decimal(10,2) NOT NULL,
+  PRIMARY KEY (`idsesion`),
+  UNIQUE KEY `sesion_unica` (`idhorario`,`fecha`),
+  KEY `idcliente` (`idcliente`),
+  CONSTRAINT `sesiones_ibfk_1` FOREIGN KEY (`idcliente`) REFERENCES `clientes` (`idcliente`),
+  CONSTRAINT `sesiones_ibfk_2` FOREIGN KEY (`idhorario`) REFERENCES `horarios` (`idhorario`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2026-07-20 23:09:06

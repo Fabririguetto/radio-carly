@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import AdminNav from "@/components/AdminNav";
 
 type Estudio = { idestudio: number; nombre: string; activo: number };
 
@@ -70,15 +71,12 @@ export default function AdminEstudios() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
       <div className="max-w-2xl mx-auto space-y-4">
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/admin/horarios" className="text-gray-400 text-sm py-2 pr-1">←</Link>
-            <h1 className="text-white font-bold text-xl">Estudios</h1>
-          </div>
+          <h1 className="text-white font-bold text-xl">Estudios</h1>
           <button
             onClick={async () => { await fetch("/api/admin/auth", { method: "DELETE" }); router.push("/"); }}
             title="Salir"
@@ -193,6 +191,7 @@ export default function AdminEstudios() {
         </p>
 
       </div>
+      <AdminNav />
     </div>
   );
 }
