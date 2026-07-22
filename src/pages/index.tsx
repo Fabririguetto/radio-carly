@@ -28,35 +28,6 @@ type Horario = {
 
 type Paso = "dni" | "notif" | "pago" | "qr" | "mp_result";
 
-function NumericKeypad({ onPress }: { onPress: (key: string) => void }) {
-  const keys = ["1","2","3","4","5","6","7","8","9","⌫","0",""];
-  return (
-    <div className="grid grid-cols-3 gap-3">
-      {keys.map((k, i) =>
-        k === "" ? <div key={i} /> : (
-          <button
-            key={i}
-            type="button"
-            onPointerDown={(e) => { e.preventDefault(); onPress(k); }}
-            className={`rounded-2xl py-5 text-2xl font-semibold select-none transition-all active:scale-95 ${
-              k === "⌫"
-                ? "bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-gray-300"
-                : "bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white"
-            }`}
-          >
-            {k === "⌫" ? (
-              <span className="flex justify-center">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
-                </svg>
-              </span>
-            ) : k}
-          </button>
-        )
-      )}
-    </div>
-  );
-}
 
 type NotifActiva = {
   idnotificacion: number;
@@ -95,18 +66,26 @@ export default function Home() {
   const [negocio, setNegocio] = useState("Estudio");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
-  const [esMobile, setEsMobile] = useState(false);
   const [mpResult, setMpResult] = useState<"ok" | "error" | "pendiente" | null>(null);
 
   const pendingContinuationRef = useRef<(() => Promise<void>) | null>(null);
 
-  // Nombre del negocio desde config + detección mobile
+  // Nombre del negocio desde config
   useEffect(() => {
     fetch("/api/config-publica").then(r => r.json()).then(d => {
       if (d.nombre_negocio) setNegocio(d.nombre_negocio);
     }).catch(() => {});
-    setEsMobile(window.innerWidth < 640);
   }, []);
+
+  // Enter en paso notif
+  useEffect(() => {
+    if (paso !== "notif") return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Enter" && !cargando) aceptarNotif();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paso, cargando]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Manejar retorno de MP Checkout Pro (?pago=ok|error|pendiente)
   useEffect(() => {
@@ -369,26 +348,6 @@ export default function Home() {
     }
   }
 
-  function handleKeyDni(key: string) {
-    if (key === "⌫") {
-      setDni((d) => d.slice(0, -1));
-    } else {
-      setDni((d) => (d.length < 10 ? d + key : d));
-    }
-  }
-
-  function handleKeyMonto(key: string) {
-    if (key === "⌫") {
-      setMontoPagar((m) => m.slice(0, -1));
-    } else {
-      setMontoPagar((m) => {
-        if (m === "0") return key;
-        if (m.length >= 7) return m;
-        return m + key;
-      });
-    }
-  }
-
   function reiniciar() {
     setNotifActiva(null);
     pendingContinuationRef.current = null;
@@ -461,28 +420,15 @@ export default function Home() {
           {paso === "dni" && (
             <div className="space-y-4">
               <h2 className="text-white font-semibold text-lg">Ingresá tu DNI</h2>
-              {esMobile ? (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Ej: 12345678"
-                  value={dni}
-                  onChange={(e) => setDni(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && buscarCliente()}
-                  className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              ) : (
-                <>
-                  <div className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 min-h-[62px] flex items-center">
-                    {dni ? (
-                      <span className="text-white text-2xl font-mono tracking-widest">{dni}</span>
-                    ) : (
-                      <span className="text-gray-500 text-xl">Ej: 12345678</span>
-                    )}
-                  </div>
-                  <NumericKeypad onPress={handleKeyDni} />
-                </>
-              )}
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Ej: 12345678"
+                value={dni}
+                onChange={(e) => setDni(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && buscarCliente()}
+                className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
               {error && <p className="text-red-400 text-sm">{error}</p>}
               <button
                 onClick={buscarCliente}
@@ -586,74 +532,49 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-2">
-                  {esMobile ? (
-                    <>
-                      <label className="text-gray-400 text-sm">Monto a pagar</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min="1"
-                        value={montoPagar}
-                        onChange={(e) => setMontoPagar(e.target.value)}
-                        className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        onClick={() => setMontoPagar(String(totalDebido))}
-                        className="text-blue-400 text-sm py-1"
-                      >
-                        Pagar total (${totalDebido.toLocaleString("es-AR")})
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <label className="text-gray-400 text-sm">Monto a pagar</label>
-                        <button
-                          type="button"
-                          onPointerDown={(e) => { e.preventDefault(); setMontoPagar(String(totalDebido)); }}
-                          className="text-blue-400 text-sm"
-                        >
-                          Pagar total (${totalDebido.toLocaleString("es-AR")})
-                        </button>
-                      </div>
-                      <div className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 min-h-[62px] flex items-center">
-                        {montoPagar ? (
-                          <span className="text-white text-2xl font-mono">${Number(montoPagar).toLocaleString("es-AR")}</span>
-                        ) : (
-                          <span className="text-gray-500 text-xl">Ingresá un monto</span>
-                        )}
-                      </div>
-                      <NumericKeypad onPress={handleKeyMonto} />
-                    </>
-                  )}
+                  <label className="text-gray-400 text-sm">Monto a pagar</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    value={montoPagar}
+                    onChange={(e) => setMontoPagar(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !cargando && Number(montoPagar) > 0) generarQR(); }}
+                    className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => setMontoPagar(String(totalDebido))}
+                    className="text-blue-400 text-sm py-1"
+                  >
+                    Pagar total (${totalDebido.toLocaleString("es-AR")})
+                  </button>
                 </div>
 
                 {error && <p className="text-red-400 text-sm">{error}</p>}
 
-                {esMobile && (
-                  <button
-                    onClick={pagarConMP}
-                    disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
-                    className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg flex items-center justify-center gap-2"
-                  >
-                    {cargando ? "Redirigiendo..." : (
-                      <>
-                        <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M11.65 3C7.41 3 4 6.41 4 10.65c0 3.07 1.78 5.74 4.37 7.05L11.65 21l3.28-3.3C17.52 16.39 19.3 13.72 19.3 10.65 19.3 6.41 15.89 3 11.65 3zm0 2c2.57 0 4.65 2.08 4.65 4.65S14.22 14.3 11.65 14.3 7 12.22 7 9.65 9.08 5 11.65 5z"/>
-                        </svg>
-                        Pagar con Mercado Pago
-                      </>
-                    )}
-                  </button>
-                )}
+                {/* Solo visible en mobile (< 640px) */}
+                <button
+                  onClick={pagarConMP}
+                  disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
+                  className="sm:hidden w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg flex items-center justify-center gap-2"
+                >
+                  {cargando ? "Redirigiendo..." : (
+                    <>
+                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.65 3C7.41 3 4 6.41 4 10.65c0 3.07 1.78 5.74 4.37 7.05L11.65 21l3.28-3.3C17.52 16.39 19.3 13.72 19.3 10.65 19.3 6.41 15.89 3 11.65 3zm0 2c2.57 0 4.65 2.08 4.65 4.65S14.22 14.3 11.65 14.3 7 12.22 7 9.65 9.08 5 11.65 5z"/>
+                      </svg>
+                      Pagar con Mercado Pago
+                    </>
+                  )}
+                </button>
 
                 <button
                   onClick={generarQR}
                   disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
-                  className={`w-full disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg ${esMobile ? "bg-gray-700 hover:bg-gray-600 active:bg-gray-800" : "bg-blue-600 hover:bg-blue-500 active:bg-blue-700"}`}
+                  className="w-full disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg bg-gray-700 sm:bg-blue-600 hover:bg-gray-600 sm:hover:bg-blue-500 active:bg-gray-800 sm:active:bg-blue-700"
                 >
                   <span className="block">{cargando ? "Generando QR..." : "Generar QR de pago"}</span>
-                  {!cargando && !esMobile && <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
+                  {!cargando && <span className="hidden sm:block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
                 </button>
                 <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
                   ← Volver
