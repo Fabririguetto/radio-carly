@@ -237,8 +237,7 @@ export default function AdminConfig() {
         setMpCargando(false);
         return;
       }
-      window.open(data.url, "_blank", "noopener,noreferrer");
-      setMpCargando(false);
+      window.location.href = data.url;
     } catch {
       setErrorMp("Error de red. Intentá de nuevo.");
       setMpCargando(false);

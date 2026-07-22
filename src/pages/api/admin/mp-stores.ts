@@ -22,9 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(502).json({ error: "Error al buscar sucursal", detail: err });
     }
     const data = await searchRes.json();
-    // La respuesta es un array: [{ paging, results }]
-    const results = Array.isArray(data) ? data[0]?.results : data?.results;
-    const store = results?.[0] ?? null;
+    const results: any[] = Array.isArray(data) ? (data[0]?.results ?? []) : (data?.results ?? []);
+    const store = results.find((s) => s.external_id === storeExternalId) ?? results[0] ?? null;
     return res.status(200).json({ store });
   }
 
