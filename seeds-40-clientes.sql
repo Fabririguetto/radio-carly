@@ -248,22 +248,22 @@ INSERT INTO sesiones (idcliente, idhorario, fecha, asistio, monto) VALUES
 
 -- ─── PAGOS ────────────────────────────────────────────────────────────────────
 
-INSERT INTO pagos (idcliente, monto, estado, motivo, fecha) VALUES
-  ( 2, 40000.00, 'aprobado', 'Pago mensual julio',     '2026-07-18 10:15:00'),
-  ( 4, 35000.00, 'aprobado', 'Pago mensual julio',     '2026-07-17 09:30:00'),
-  ( 6, 45000.00, 'aprobado', 'Pago mensual julio',     '2026-07-16 11:00:00'),
-  ( 9, 25000.00, 'aprobado', 'Pago parcial junio',     '2026-07-10 14:20:00'),
-  (11, 40000.00, 'aprobado', 'Pago mensual julio',     '2026-07-15 10:00:00'),
-  (14, 50000.00, 'aprobado', 'Pago mensual julio',     '2026-07-14 08:45:00'),
-  (18, 15000.00, 'aprobado', 'Pago mensual julio',     '2026-07-13 16:00:00'),
-  (21, 10000.00, 'aprobado', 'Efectivo - julio',       '2026-07-20 09:00:00'),
-  (24, 20000.00, 'aprobado', 'Pago mensual julio',     '2026-07-11 17:30:00'),
-  (27, 45000.00, 'aprobado', 'Pago mensual julio',     '2026-07-09 12:00:00'),
-  (31, 10000.00, 'aprobado', 'Pago mensual julio',     '2026-07-22 09:45:00'),
-  (34, 35000.00, 'aprobado', 'Pago mensual julio',     '2026-07-21 10:30:00'),
-  (37, 15000.00, 'aprobado', 'Efectivo - julio',       '2026-07-22 08:00:00'),
-  (39, 40000.00, 'aprobado', 'Pago mensual julio',     '2026-07-19 11:15:00'),
-  ( 1,  5000.00, 'aprobado', 'Pago parcial',           '2026-07-22 10:00:00');
+INSERT INTO pagos (idcliente, monto, estado, tipo, motivo, fecha) VALUES
+  ( 2, 40000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-18 10:15:00'),
+  ( 4, 35000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-17 09:30:00'),
+  ( 6, 45000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-16 11:00:00'),
+  ( 9, 25000.00, 'aprobado', 'manual', 'Pago parcial junio',     '2026-07-10 14:20:00'),
+  (11, 40000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-15 10:00:00'),
+  (14, 50000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-14 08:45:00'),
+  (18, 15000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-13 16:00:00'),
+  (21, 10000.00, 'aprobado', 'manual', 'Efectivo - julio',       '2026-07-20 09:00:00'),
+  (24, 20000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-11 17:30:00'),
+  (27, 45000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-09 12:00:00'),
+  (31, 10000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-22 09:45:00'),
+  (34, 35000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-21 10:30:00'),
+  (37, 15000.00, 'aprobado', 'manual', 'Efectivo - julio',       '2026-07-22 08:00:00'),
+  (39, 40000.00, 'aprobado', 'manual', 'Pago mensual julio',     '2026-07-19 11:15:00'),
+  ( 1,  5000.00, 'aprobado', 'manual', 'Pago parcial',           '2026-07-22 10:00:00');
 
 -- ─── CONFIG ───────────────────────────────────────────────────────────────────
 INSERT INTO config (id, nombre_negocio, precio_hora, precio_reserva)

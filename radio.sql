@@ -130,6 +130,7 @@ CREATE TABLE `pagos` (
   `mp_order_id` varchar(255) DEFAULT NULL,
   `mp_payment_id` varchar(255) DEFAULT NULL,
   `estado` enum('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
+  `tipo` enum('qr','manual','bonificacion') NOT NULL DEFAULT 'qr',
   `motivo` varchar(200) DEFAULT NULL,
   `fecha` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`idpago`),
