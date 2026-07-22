@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import AdminNav from "@/components/AdminNav";
 
 type Seccion = {
@@ -249,10 +248,7 @@ export default function Ayuda() {
     <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-6 sm:pl-64">
       <div className="max-w-lg mx-auto space-y-4">
 
-        <div className="flex items-center gap-3 pl-12">
-          <Link href="/admin/horarios" className="text-gray-400 text-sm py-2 pr-1">←</Link>
-          <h1 className="text-white font-bold text-xl">Ayuda</h1>
-        </div>
+        <h1 className="text-white font-bold text-xl pl-12">Ayuda</h1>
 
         <div className="space-y-2">
           {secciones.map((s) => {
