@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/admin/mp-oauth-callback`;
+    const redirectUri = `${(process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "")}/api/admin/mp-oauth-callback`;
 
     // 1. Intercambiar código por tokens
     const tokenRes = await fetch(`${MP_BASE}/oauth/token`, {
