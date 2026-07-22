@@ -192,18 +192,23 @@ export default function Ayuda() {
       contenido: (
         <div className="space-y-3">
           <Bloque titulo="Flujo del cliente">
-            <Item label="1. Ingresa su DNI" desc="en la pantalla principal." />
-            <Item label="2. Notificación" desc="si tiene una notificación activa, la ve y la acepta antes de continuar." />
-            <Item label="3a. Tiene horario activo" desc="se registra la asistencia y pasa a pagar." />
+            <Item label="1. Ingresa su DNI" desc="en el campo de texto. Enter o botón Continuar para avanzar." />
+            <Item label="2. Notificación" desc="si tiene una notificación activa, la ve y la acepta antes de continuar. También puede avanzar con Enter." />
+            <Item label="3a. Tiene horario activo" desc="se registra la asistencia automáticamente y pasa a pagar." />
             <Item label="3b. Sin horario activo" desc="pasa directo a la pantalla de pago con su deuda actual." />
-            <Item label="4. Elige el monto" desc="puede pagar el total o un monto parcial." />
-            <Item label="5. Escanea el QR" desc="con la app de Mercado Pago. El QR vence en 2 minutos." />
+            <Item label="4. Elige el monto" desc="el campo se pre-rellena con la deuda total. Puede modificarlo o usar el botón Pagar total. Enter genera el QR." />
+            <Item label="5a. Pago QR (todos los dispositivos)" desc="generá el QR y escanealo con la app de Mercado Pago. Vence en 2 minutos." />
+            <Item label="5b. Pago MP directo (solo mobile)" desc="el cliente toca Pagar con Mercado Pago y es redirigido a la app/web de MP para completar el pago." />
+          </Bloque>
+          <Bloque titulo="Acceso desde el teléfono del cliente">
+            <p className="text-gray-400 text-sm">El cliente puede ingresar a la URL del kiosko desde su propio celular. En mobile aparece el botón <span className="text-blue-400 font-medium">Pagar con Mercado Pago</span> que redirige directamente a Mercado Pago para pagar sin escanear ningún QR.</p>
           </Bloque>
           <Bloque titulo="Notas">
-            <Item label="Monto mínimo QR" desc="$15 (límite de Mercado Pago)." />
+            <Item label="Monto mínimo MP" desc="$15 (límite de Mercado Pago) tanto para QR como para pago directo." />
             <Item label="Si el QR vence" desc="vuelve al inicio automáticamente y la orden se cancela." />
             <Item label="Pago confirmado" desc="la deuda se actualiza automáticamente al recibir la notificación de MP." />
             <Item label="Límite de deuda" desc="si el cliente supera el límite configurado, no puede registrar sesión hasta pagar." />
+            <Item label="Teclado numérico físico" desc="el campo de monto se enfoca automáticamente; el numpad del teclado escribe directamente sin hacer clic." />
           </Bloque>
         </div>
       ),
