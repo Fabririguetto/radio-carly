@@ -26,6 +26,47 @@ async function firmaValida(req: NextApiRequest): Promise<boolean> {
   return hash === v1;
 }
 
+async function procesarPayment(paymentId: string) {
+  const mp = await getMpConfig();
+  const payRes = await fetch(
+    `https://api.mercadopago.com/v1/payments/${paymentId}`,
+    { headers: { Authorization: `Bearer ${mp.accessToken}` } }
+  );
+  if (!payRes.ok) return;
+
+  const payment = await payRes.json();
+  if (payment.status !== "approved") return;
+
+  const externalRef = payment.external_reference;
+  if (!externalRef) return;
+
+  const [pagoRows] = await pool.query(
+    "SELECT idpago, idcliente, monto FROM pagos WHERE mp_order_id = ? AND estado = 'pendiente'",
+    [externalRef]
+  );
+  const pago = (pagoRows as any[])[0];
+  if (!pago) return;
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query(
+      "UPDATE pagos SET estado = 'aprobado', mp_payment_id = ? WHERE idpago = ?",
+      [String(paymentId), pago.idpago]
+    );
+    await conn.query(
+      "UPDATE ctacte SET ingreso = ingreso + ?, balance = balance - ? WHERE idcliente = ?",
+      [pago.monto, pago.monto, pago.idcliente]
+    );
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
 async function procesarOrder(orderId: string) {
   const mp = await getMpConfig();
   const orderRes = await fetch(
@@ -82,6 +123,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (type === "order" && data?.id) {
       await procesarOrder(String(data.id));
+    } else if (type === "payment" && data?.id) {
+      await procesarPayment(String(data.id));
     } else if (type === "mp-connect") {
       if (req.body.action === "application.deauthorized") {
         await pool.query(

@@ -26,7 +26,7 @@ type Horario = {
   estudio_nombre?: string | null;
 };
 
-type Paso = "dni" | "notif" | "pago" | "qr";
+type Paso = "dni" | "notif" | "pago" | "qr" | "mp_result";
 
 type NotifActiva = {
   idnotificacion: number;
@@ -64,17 +64,32 @@ export default function Home() {
   const [negocio, setNegocio] = useState("Estudio");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [esMobile, setEsMobile] = useState(false);
+  const [mpResult, setMpResult] = useState<"ok" | "error" | "pendiente" | null>(null);
 
   const dniInputRef = useRef<HTMLInputElement>(null);
   const pendingContinuationRef = useRef<(() => Promise<void>) | null>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
 
-  // Nombre del negocio desde config
+  // Nombre del negocio desde config + detección mobile
   useEffect(() => {
     fetch("/api/config-publica").then(r => r.json()).then(d => {
       if (d.nombre_negocio) setNegocio(d.nombre_negocio);
     }).catch(() => {});
+    setEsMobile(window.innerWidth < 640);
   }, []);
+
+  // Manejar retorno de MP Checkout Pro (?pago=ok|error|pendiente)
+  useEffect(() => {
+    const { pago } = router.query;
+    if (!pago) return;
+    if (pago === "ok" || pago === "error" || pago === "pendiente") {
+      setMpResult(pago as "ok" | "error" | "pendiente");
+      setPaso("mp_result");
+      router.replace("/", undefined, { shallow: true });
+      if (pago === "ok") setTimeout(() => reiniciar(), 4000);
+    }
+  }, [router.query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-focus inputs al cambiar de paso
   useEffect(() => {
@@ -322,6 +337,29 @@ export default function Home() {
     await generarQRPara(cliente.idcliente, Number(montoPagar));
   }
 
+  async function pagarConMP() {
+    if (!cliente || !montoPagar || Number(montoPagar) <= 0) { setError("Ingresá un monto válido."); return; }
+    setCargando(true);
+    setError("");
+    try {
+      const res = await fetch("/api/pagos/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idcliente: cliente.idcliente, monto: Number(montoPagar) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error al generar el link de pago.");
+        setCargando(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError("Error de conexión. Intentá de nuevo.");
+      setCargando(false);
+    }
+  }
+
   function reiniciar() {
     setNotifActiva(null);
     pendingContinuationRef.current = null;
@@ -530,19 +568,81 @@ export default function Home() {
 
                 {error && <p className="text-red-400 text-sm">{error}</p>}
 
+                {esMobile && (
+                  <button
+                    onClick={pagarConMP}
+                    disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
+                    className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg flex items-center justify-center gap-2"
+                  >
+                    {cargando ? "Redirigiendo..." : (
+                      <>
+                        <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M11.65 3C7.41 3 4 6.41 4 10.65c0 3.07 1.78 5.74 4.37 7.05L11.65 21l3.28-3.3C17.52 16.39 19.3 13.72 19.3 10.65 19.3 6.41 15.89 3 11.65 3zm0 2c2.57 0 4.65 2.08 4.65 4.65S14.22 14.3 11.65 14.3 7 12.22 7 9.65 9.08 5 11.65 5z"/>
+                        </svg>
+                        Pagar con Mercado Pago
+                      </>
+                    )}
+                  </button>
+                )}
+
                 <button
                   onClick={generarQR}
                   disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
-                  className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg"
+                  className={`w-full disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg ${esMobile ? "bg-gray-700 hover:bg-gray-600 active:bg-gray-800" : "bg-blue-600 hover:bg-blue-500 active:bg-blue-700"}`}
                 >
                   <span className="block">{cargando ? "Generando QR..." : "Generar QR de pago"}</span>
-                  {!cargando && <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
+                  {!cargando && !esMobile && <span className="block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
                 </button>
                 <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
                   ← Volver
                 </button>
               </div>
             )
+          )}
+
+          {/* PASO MP_RESULT: retorno de Checkout Pro */}
+          {paso === "mp_result" && (
+            <div className="py-10 text-center space-y-4">
+              {mpResult === "ok" ? (
+                <>
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 rounded-full bg-green-600/20 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-white font-bold text-2xl">¡Pago recibido!</p>
+                  <p className="text-gray-500 text-sm">Volviendo al inicio...</p>
+                </>
+              ) : mpResult === "pendiente" ? (
+                <>
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 rounded-full bg-yellow-600/20 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-white font-bold text-xl">Pago pendiente</p>
+                  <p className="text-gray-400 text-sm">Mercado Pago está procesando el pago. Te llegará una confirmación.</p>
+                  <button onClick={reiniciar} className="text-gray-500 text-sm py-3">← Volver al inicio</button>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 rounded-full bg-red-600/20 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-white font-bold text-xl">Pago cancelado</p>
+                  <p className="text-gray-400 text-sm">El pago fue cancelado o rechazado.</p>
+                  <button onClick={reiniciar} className="text-gray-500 text-sm py-3">← Volver al inicio</button>
+                </>
+              )}
+            </div>
           )}
 
           {/* PASO 3: QR */}
