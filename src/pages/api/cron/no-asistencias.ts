@@ -14,21 +14,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     await conn.beginTransaction();
 
-    // Clientes con horario para hoy cuya hora_fin ya pasó y no tienen sesión registrada
+    // Programas activos con horario para hoy cuya hora_fin ya pasó y no tienen sesión registrada
     const [pendientes] = await conn.query(
-      `SELECT h.idhorario, h.idcliente
-       FROM horarios h
-       WHERE h.dia_semana = (
+      `SELECT ph.idprograma_horario, p.idcliente
+       FROM programas p
+       JOIN programas_horarios ph ON ph.idprograma = p.idprograma
+       WHERE p.activo = 1
+         AND p.fecha_inicio <= CURDATE()
+         AND (p.fecha_fin IS NULL OR p.fecha_fin >= CURDATE())
+         AND ph.dia_semana = (
            CASE DAYOFWEEK(CURDATE())
              WHEN 1 THEN 7
              ELSE DAYOFWEEK(CURDATE()) - 1
            END
          )
-         AND h.hora_fin < CURTIME()
+         AND ph.hora_fin < CURTIME()
          AND NOT EXISTS (
            SELECT 1 FROM sesiones s
-           WHERE s.idhorario = h.idhorario
-             AND s.idcliente = h.idcliente
+           WHERE s.idprograma_horario = ph.idprograma_horario
              AND s.fecha = CURDATE()
          )`
     );
@@ -46,13 +49,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const precio_reserva = precios.precio_reserva;
 
       const [result] = await conn.query(
-        `INSERT INTO sesiones (idcliente, idhorario, fecha, asistio, monto)
+        `INSERT INTO sesiones (idcliente, idprograma_horario, fecha, asistio, monto)
          VALUES (?, ?, CURDATE(), 0, ?)
          ON DUPLICATE KEY UPDATE asistio = 0, monto = ?`,
-        [h.idcliente, h.idhorario, precio_reserva, precio_reserva]
+        [h.idcliente, h.idprograma_horario, precio_reserva, precio_reserva]
       );
       // affectedRows = 1 → inserción nueva; 2 → ya existía (ON DUPLICATE KEY)
-      // Solo actualizar ctacte si la sesión es nueva para evitar doble cobro
       if ((result as any).affectedRows === 1) {
         await conn.query(
           `UPDATE ctacte SET egreso = egreso + ?, balance = balance + ? WHERE idcliente = ?`,

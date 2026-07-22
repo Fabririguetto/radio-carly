@@ -8,7 +8,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      await conn.query("DELETE FROM sesiones WHERE idhorario = ?", [id]);
       await conn.query("DELETE FROM horarios WHERE idhorario = ?", [id]);
       await conn.commit();
       return res.status(200).json({ ok: true });

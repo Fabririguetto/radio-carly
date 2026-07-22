@@ -10,7 +10,7 @@ type Cliente = {
 
 type Sesion = {
   idsesion: number;
-  idhorario: number;
+  idprograma_horario: number;
   asistio: number | null;
   monto: number;
   hora_inicio: string;
@@ -22,10 +22,11 @@ type Sesion = {
 type Paso = "dni" | "notif" | "horarios" | "pago" | "qr" | "mp_result";
 
 type HorarioConSesion = {
-  idhorario: number;
+  idprograma_horario: number;
   hora_inicio: string;
   hora_fin: string;
   estudio_nombre: string | null;
+  programa_nombre: string | null;
   sesion: { idsesion: number; asistio: number; monto: number } | null;
 };
 
@@ -288,7 +289,7 @@ export default function Home() {
         const res = await fetch("/api/sesiones", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idcliente: data.idcliente, idhorario: h.idhorario, asistio: true }),
+          body: JSON.stringify({ idcliente: data.idcliente, idprograma_horario: h.idprograma_horario, asistio: true }),
         });
         if (res.status === 403) {
           const errData = await res.json();
@@ -312,7 +313,7 @@ export default function Home() {
         setCliente({ ...data, balance: nuevoBalance });
         setSesion({
           idsesion: 0,
-          idhorario: h.idhorario,
+          idprograma_horario: h.idprograma_horario,
           asistio: 1,
           monto: sesData.monto,
           hora_inicio: h.hora_inicio,
@@ -342,7 +343,7 @@ export default function Home() {
       const res = await fetch("/api/sesiones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idcliente: cliente.idcliente, idhorario: h.idhorario, asistio: true }),
+        body: JSON.stringify({ idcliente: cliente.idcliente, idprograma_horario: h.idprograma_horario, asistio: true }),
       });
 
       if (res.status === 409) {
@@ -370,7 +371,7 @@ export default function Home() {
       setCliente({ ...cliente, balance: nuevoBalance });
       setSesion({
         idsesion: 0,
-        idhorario: h.idhorario,
+        idprograma_horario: h.idprograma_horario,
         asistio: 1,
         monto: data.monto,
         hora_inicio: h.hora_inicio,
@@ -623,7 +624,7 @@ export default function Home() {
                   const asistio = h.sesion?.asistio;
                   return (
                     <button
-                      key={h.idhorario}
+                      key={h.idprograma_horario}
                       onClick={() => seleccionarHorario(h)}
                       disabled={yaRegistrado || cargando}
                       className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-colors text-left

@@ -20,9 +20,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const [sesiones] = await pool.query(
       `SELECT s.idsesion, s.fecha, s.asistio, s.monto,
-              h.hora_inicio, h.hora_fin, h.dia_semana
+              ph.hora_inicio, ph.hora_fin, ph.dia_semana
        FROM sesiones s
-       JOIN horarios h ON h.idhorario = s.idhorario
+       LEFT JOIN programas_horarios ph ON ph.idprograma_horario = s.idprograma_horario
        WHERE s.idcliente = ?
        ORDER BY s.fecha DESC
        LIMIT 30`,

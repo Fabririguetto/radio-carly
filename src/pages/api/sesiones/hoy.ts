@@ -9,31 +9,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const [rows] = await pool.query(
     `SELECT
-       h.idhorario, h.hora_inicio, h.hora_fin,
+       ph.idprograma_horario, ph.hora_inicio, ph.hora_fin,
        e.nombre AS estudio_nombre,
+       p.nombre AS programa_nombre,
        s.idsesion, s.asistio, s.monto AS sesion_monto
-     FROM horarios h
-     LEFT JOIN estudios e ON e.idestudio = h.idestudio
+     FROM programas p
+     JOIN programas_horarios ph ON ph.idprograma = p.idprograma
+     LEFT JOIN estudios e ON e.idestudio = ph.idestudio
      LEFT JOIN sesiones s
-            ON s.idhorario = h.idhorario
-           AND s.idcliente = h.idcliente
+            ON s.idprograma_horario = ph.idprograma_horario
            AND s.fecha = CURDATE()
-     WHERE h.idcliente = ?
-       AND h.dia_semana = (
+     WHERE p.idcliente = ?
+       AND p.activo = 1
+       AND p.fecha_inicio <= CURDATE()
+       AND (p.fecha_fin IS NULL OR p.fecha_fin >= CURDATE())
+       AND ph.dia_semana = (
          CASE DAYOFWEEK(CURDATE())
            WHEN 1 THEN 7
            ELSE DAYOFWEEK(CURDATE()) - 1
          END
        )
-     ORDER BY h.hora_inicio`,
+     ORDER BY ph.hora_inicio`,
     [idcliente],
   );
 
   const horarios = (rows as any[]).map((r) => ({
-    idhorario:      r.idhorario,
-    hora_inicio:    r.hora_inicio,
-    hora_fin:       r.hora_fin,
-    estudio_nombre: r.estudio_nombre ?? null,
+    idprograma_horario: r.idprograma_horario,
+    hora_inicio:        r.hora_inicio,
+    hora_fin:           r.hora_fin,
+    estudio_nombre:     r.estudio_nombre ?? null,
+    programa_nombre:    r.programa_nombre ?? null,
     sesion: r.idsesion != null
       ? { idsesion: r.idsesion, asistio: r.asistio, monto: Number(r.sesion_monto) }
       : null,

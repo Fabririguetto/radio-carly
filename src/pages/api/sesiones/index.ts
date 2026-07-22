@@ -5,9 +5,9 @@ import { getPrecioCliente } from '@/lib/precios';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { idcliente, idhorario, asistio } = req.body;
-  if (!idcliente || !idhorario || asistio === undefined) {
-    return res.status(400).json({ error: 'idcliente, idhorario y asistio son requeridos' });
+  const { idcliente, idprograma_horario, asistio } = req.body;
+  if (!idcliente || !idprograma_horario || asistio === undefined) {
+    return res.status(400).json({ error: 'idcliente, idprograma_horario y asistio son requeridos' });
   }
 
   const [configRows] = await pool.query(
@@ -35,10 +35,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  // Verificar si ya existe una sesión para este horario hoy
   const [existing] = await pool.query(
-    `SELECT idsesion FROM sesiones WHERE idhorario = ? AND idcliente = ? AND fecha = CURDATE()`,
-    [idhorario, idcliente],
+    `SELECT idsesion FROM sesiones WHERE idprograma_horario = ? AND fecha = CURDATE()`,
+    [idprograma_horario],
   );
   if ((existing as any[]).length > 0) {
     return res.status(409).json({ error: "ya_registrada", mensaje: "La asistencia ya fue registrada para este horario." });
@@ -49,9 +48,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await conn.beginTransaction();
 
     await conn.query(
-      `INSERT INTO sesiones (idcliente, idhorario, fecha, asistio, monto)
+      `INSERT INTO sesiones (idcliente, idprograma_horario, fecha, asistio, monto)
        VALUES (?, ?, CURDATE(), ?, ?)`,
-      [idcliente, idhorario, asistio ? 1 : 0, monto],
+      [idcliente, idprograma_horario, asistio ? 1 : 0, monto],
     );
 
     await conn.query(

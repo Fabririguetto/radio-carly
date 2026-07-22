@@ -12,7 +12,8 @@ function fmtFecha(d: string | null | undefined): string {
   return isNaN(date.getTime()) ? "—" : date.toLocaleDateString("es-AR");
 }
 
-type Horario = { idhorario: number; dia_semana: number; hora_inicio: string; hora_fin: string; estudio_nombre?: string | null };
+type ProgHorario = { idprograma_horario: number; dia_semana: number; hora_inicio: string; hora_fin: string; estudio_nombre: string | null };
+type Programa = { idprograma: number; nombre: string; fecha_inicio: string; fecha_fin: string | null; activo: number; horarios: ProgHorario[] };
 type Sesion = { idsesion: number; fecha: string; asistio: number; monto: number; hora_inicio: string; hora_fin: string };
 type Pago = { idpago: number; monto: number; estado: string; fecha: string };
 type Cliente = { idcliente: number; nombre: string; dni: string; ingreso: number; egreso: number; balance: number; activo: number };
@@ -28,7 +29,7 @@ export default function ClienteDetalle() {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
-  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [programas, setProgramas] = useState<Programa[]>([]);
   const [toggling, setToggling] = useState(false);
   const [preciosHistorial, setPreciosHistorial] = useState<PrecioHistorial[]>([]);
   const [precioGlobal, setPrecioGlobal] = useState<{ precio_hora: number; precio_reserva: number } | null>(null);
@@ -51,9 +52,9 @@ export default function ClienteDetalle() {
   }, [id]);
 
   async function cargar() {
-    const [resDetalle, resHorarios, resPrecios] = await Promise.all([
+    const [resDetalle, resProgramas, resPrecios] = await Promise.all([
       fetch(`/api/admin/clientes/${id}`),
-      fetch(`/api/admin/clientes/${id}/horarios`),
+      fetch(`/api/admin/programas?idcliente=${id}`),
       fetch(`/api/admin/clientes/${id}/precios`),
     ]);
     if (resDetalle.status === 401) { router.replace("/admin"); return; }
@@ -61,7 +62,7 @@ export default function ClienteDetalle() {
     setCliente(detalle.cliente);
     setSesiones(detalle.sesiones);
     setPagos(detalle.pagos);
-    setHorarios(await resHorarios.json());
+    setProgramas(await resProgramas.json());
     const preciosData = await resPrecios.json();
     setPreciosHistorial(preciosData.historial ?? []);
     setPrecioGlobal(preciosData.global ?? null);
@@ -135,10 +136,6 @@ export default function ClienteDetalle() {
     setToggling(false);
   }
 
-  async function eliminarHorario(idhorario: number) {
-    await fetch(`/api/admin/horarios/${idhorario}`, { method: "DELETE" });
-    cargar();
-  }
 
   if (!cliente) return (
     <div className="min-h-[100dvh] bg-gray-950 flex items-center justify-center sm:pl-64">
@@ -234,34 +231,42 @@ export default function ClienteDetalle() {
         {/* ── RESUMEN ── */}
         {tab === "resumen" && (
           <>
-            {/* Horarios fijos */}
+            {/* Programas */}
             <section className="bg-gray-900 rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between px-4 pt-4 pb-3">
-                <h2 className="text-white font-semibold text-sm">Horarios fijos</h2>
+                <h2 className="text-white font-semibold text-sm">Programas</h2>
                 <Link
-                  href={`/admin/horarios?cliente=${id}`}
+                  href="/admin/programas"
                   className="text-blue-400 text-xs font-medium hover:text-blue-300 transition-colors"
                 >
-                  + Agregar
+                  Gestionar
                 </Link>
               </div>
-              {horarios.length === 0 ? (
-                <p className="text-gray-500 text-sm px-4 pb-4">Sin horarios asignados.</p>
+              {programas.length === 0 ? (
+                <p className="text-gray-500 text-sm px-4 pb-4">Sin programas asignados.</p>
               ) : (
                 <div className="divide-y divide-gray-800">
-                  {horarios.map((h) => (
-                    <div key={h.idhorario} className="flex items-center justify-between px-4 py-3">
-                      <div>
-                        <span className="text-white text-sm font-medium">{DIAS[h.dia_semana]}</span>
-                        <span className="text-gray-400 text-sm ml-2">{h.hora_inicio.slice(0, 5)} – {h.hora_fin.slice(0, 5)}</span>
-                        {h.estudio_nombre && <p className="text-gray-500 text-xs mt-0.5">{h.estudio_nombre}</p>}
+                  {programas.map((p) => (
+                    <div key={p.idprograma} className="px-4 py-3 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white text-sm font-medium">{p.nombre}</span>
+                        {!p.activo && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400">Inactivo</span>
+                        )}
                       </div>
-                      <button
-                        onClick={() => eliminarHorario(h.idhorario)}
-                        className="text-red-400 text-sm px-3 py-1.5 rounded-lg active:bg-red-900/30 transition-colors"
-                      >
-                        Eliminar
-                      </button>
+                      <p className="text-gray-500 text-xs">
+                        {fmtFecha(p.fecha_inicio)} — {p.fecha_fin ? fmtFecha(p.fecha_fin) : "sin vencimiento"}
+                      </p>
+                      {p.horarios.length > 0 && (
+                        <div className="space-y-0.5 pt-0.5">
+                          {p.horarios.map((h) => (
+                            <p key={h.idprograma_horario} className="text-gray-400 text-xs">
+                              {DIAS[h.dia_semana]} {String(h.hora_inicio).slice(0, 5)}–{String(h.hora_fin).slice(0, 5)}
+                              {h.estudio_nombre && <span className="text-gray-600"> · {h.estudio_nombre}</span>}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
