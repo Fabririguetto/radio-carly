@@ -193,6 +193,17 @@ export default function Home() {
     try {
       const res = await fetch(`/api/clientes/${dni.trim()}`);
       if (!res.ok) {
+        const authRes = await fetch("/api/admin/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dni: dni.trim(), password: "" }),
+        });
+        const authData = await authRes.json();
+        if (authRes.status === 401 && authData.error === "Contraseña incorrecta") {
+          sessionStorage.setItem("adminDni", dni.trim());
+          router.push("/admin");
+          return;
+        }
         setError("DNI no encontrado. Consultá con el administrador.");
         setCargando(false);
         return;
@@ -697,15 +708,6 @@ export default function Home() {
 
         </div>
       </main>
-
-      {/* Link discreto al panel de administración */}
-      {paso === "dni" && (
-        <div className="text-center pb-4">
-          <a href="/admin" className="text-gray-700 text-xs hover:text-gray-500 transition-colors">
-            Administración
-          </a>
-        </div>
-      )}
 
       {/* Ticket de impresión — solo visible al imprimir */}
       {ticketData && cliente && (
