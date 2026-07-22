@@ -18,15 +18,16 @@ type Sesion = {
   estudio_nombre?: string | null;
 };
 
-type Horario = {
+
+type Paso = "dni" | "notif" | "horarios" | "pago" | "qr" | "mp_result";
+
+type HorarioConSesion = {
   idhorario: number;
   hora_inicio: string;
   hora_fin: string;
-  dia_semana: number;
-  estudio_nombre?: string | null;
+  estudio_nombre: string | null;
+  sesion: { idsesion: number; asistio: number; monto: number } | null;
 };
-
-type Paso = "dni" | "notif" | "pago" | "qr" | "mp_result";
 
 
 type NotifActiva = {
@@ -62,6 +63,7 @@ export default function Home() {
   const pagoCobradoRef = useRef(false);
 
   const [notifActiva, setNotifActiva] = useState<NotifActiva | null>(null);
+  const [horariosHoy, setHorariosHoy] = useState<HorarioConSesion[]>([]);
 
   const [totalDebido, setTotalDebido] = useState(0);
   const [negocio, setNegocio] = useState("Estudio");
@@ -88,6 +90,20 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [paso, cargando]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Teclado numérico en paso horarios: 1..N selecciona horario
+  useEffect(() => {
+    if (paso !== "horarios") return;
+    function onKey(e: KeyboardEvent) {
+      const num = parseInt(e.key, 10);
+      if (!isNaN(num) && num >= 1 && num <= horariosHoy.length) {
+        const h = horariosHoy[num - 1];
+        if (!h.sesion && !cargando) seleccionarHorario(h);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paso, horariosHoy, cargando]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Manejar retorno de MP Checkout Pro (?pago=ok|error|pendiente)
   useEffect(() => {
@@ -235,20 +251,83 @@ export default function Home() {
   async function continuarFlujo(data: Cliente) {
     const resSesion = await fetch(`/api/sesiones/hoy?idcliente=${data.idcliente}`);
     const dataSesion = await resSesion.json();
+    const horarios: HorarioConSesion[] = dataSesion.horarios ?? [];
 
-    if (dataSesion.sesion) {
-      setSesion(dataSesion.sesion);
-      const monto = data.balance + dataSesion.sesion.monto;
-      setTotalDebido(monto);
-      setMontoPagar(monto > 0 ? String(monto) : "");
-      setPaso("pago");
-    } else if (dataSesion.horario_activo) {
-      await registrarSesion(data, dataSesion.horario_activo);
-    } else {
+    if (horarios.length === 0) {
+      // Sin horarios hoy → ir directo a pago con saldo actual
       setTotalDebido(data.balance);
       setMontoPagar(data.balance > 0 ? String(data.balance) : "");
+      setCargando(false);
       setPaso("pago");
+      return;
     }
+
+    setHorariosHoy(horarios);
+
+    const pendientes = horarios.filter((h) => h.sesion === null);
+    if (pendientes.length === 0) {
+      // Todos los horarios ya registrados → ir a pago con saldo actual
+      setTotalDebido(data.balance);
+      setMontoPagar(data.balance > 0 ? String(data.balance) : "");
+      setCargando(false);
+      setPaso("pago");
+      return;
+    }
+
+    setCargando(false);
+    setPaso("horarios");
+  }
+
+  async function seleccionarHorario(h: HorarioConSesion) {
+    if (!cliente || h.sesion !== null || cargando) return;
+    setCargando(true);
+    setError("");
+    try {
+      const res = await fetch("/api/sesiones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idcliente: cliente.idcliente, idhorario: h.idhorario, asistio: true }),
+      });
+
+      if (res.status === 409) {
+        // Ya registrada por otra vía — refrescar lista
+        const resSesion = await fetch(`/api/sesiones/hoy?idcliente=${cliente.idcliente}`);
+        const d = await resSesion.json();
+        setHorariosHoy(d.horarios ?? []);
+        setCargando(false);
+        return;
+      }
+
+      if (res.status === 403) {
+        const data = await res.json();
+        setError(data.mensaje ?? "Deuda excedida. Pagá el saldo pendiente.");
+        const bal = Number(cliente.balance);
+        setTotalDebido(bal);
+        setMontoPagar(bal > 0 ? String(bal) : "");
+        setCargando(false);
+        setPaso("pago");
+        return;
+      }
+
+      const data = await res.json();
+      const nuevoBalance = Number(cliente.balance) + Number(data.monto);
+      setCliente({ ...cliente, balance: nuevoBalance });
+      setSesion({
+        idsesion: 0,
+        idhorario: h.idhorario,
+        asistio: 1,
+        monto: data.monto,
+        hora_inicio: h.hora_inicio,
+        hora_fin: h.hora_fin,
+        estudio_nombre: h.estudio_nombre,
+      });
+      setTotalDebido(nuevoBalance);
+      setMontoPagar(nuevoBalance > 0 ? String(nuevoBalance) : "");
+      setPaso("pago");
+    } catch {
+      setError("Error al registrar la asistencia.");
+    }
+    setCargando(false);
   }
 
   async function aceptarNotif() {
@@ -267,36 +346,6 @@ export default function Home() {
       pendingContinuationRef.current = null;
       await fn();
       setCargando(false);
-    }
-  }
-
-  async function registrarSesion(cl: Cliente, hor: Horario) {
-    try {
-      const res = await fetch("/api/sesiones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idcliente: cl.idcliente, idhorario: hor.idhorario, asistio: true }),
-      });
-
-      if (res.status === 403) {
-        const data = await res.json();
-        setError(data.mensaje ?? "Deuda excedida. Pagá el saldo pendiente.");
-        const bal = Number(cl.balance);
-        setTotalDebido(bal);
-        setMontoPagar(bal > 0 ? String(bal) : "");
-        setPaso("pago");
-        return;
-      }
-
-      const data = await res.json();
-      const nuevoBalance = Number(cl.balance) + Number(data.monto);
-      setCliente({ ...cl, balance: nuevoBalance });
-      setSesion({ ...data, idhorario: hor.idhorario, asistio: 1, estudio_nombre: hor.estudio_nombre });
-      setTotalDebido(nuevoBalance);
-      setMontoPagar(nuevoBalance > 0 ? String(nuevoBalance) : "");
-      setPaso("pago");
-    } catch {
-      setError("Error al registrar la sesión.");
     }
   }
 
@@ -381,6 +430,7 @@ export default function Home() {
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     if (qrCountdownRef.current) { clearInterval(qrCountdownRef.current); qrCountdownRef.current = null; }
     pagoCobradoRef.current = false;
+    setHorariosHoy([]);
     setError("");
     setPaso("dni");
   }
@@ -497,6 +547,68 @@ export default function Home() {
                 {cargando ? "Cargando..." : "Aceptar y continuar"}
               </button>
               <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-2 transition-colors">
+                ← Volver
+              </button>
+            </div>
+          )}
+
+          {/* PASO HORARIOS: selección de sesión del día */}
+          {paso === "horarios" && cliente && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-gray-400 text-xs uppercase tracking-wide">Cliente</p>
+                <p className="text-white font-bold text-2xl mt-0.5">{cliente.nombre}</p>
+                <p className="text-gray-500 text-sm mt-1">Presioná el número para marcar asistencia</p>
+              </div>
+
+              <div className="space-y-2">
+                {horariosHoy.map((h, i) => {
+                  const yaRegistrado = h.sesion !== null;
+                  const asistio = h.sesion?.asistio;
+                  return (
+                    <button
+                      key={h.idhorario}
+                      onClick={() => seleccionarHorario(h)}
+                      disabled={yaRegistrado || cargando}
+                      className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-colors text-left
+                        ${yaRegistrado
+                          ? "bg-gray-800/50 border-gray-700 cursor-default"
+                          : "bg-gray-800 border-gray-600 hover:border-blue-500 active:bg-gray-700 cursor-pointer"
+                        }`}
+                    >
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shrink-0
+                        ${!yaRegistrado
+                          ? "bg-blue-600 text-white"
+                          : asistio === 1
+                            ? "bg-green-600/20 text-green-400"
+                            : "bg-gray-600/20 text-gray-500"
+                        }`}>
+                        {yaRegistrado ? (asistio === 1 ? "✓" : "✗") : i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold ${yaRegistrado ? "text-gray-400" : "text-white"}`}>
+                          {String(h.hora_inicio).slice(0, 5)} – {String(h.hora_fin).slice(0, 5)}
+                        </p>
+                        {h.estudio_nombre && (
+                          <p className="text-gray-500 text-xs mt-0.5">{h.estudio_nombre}</p>
+                        )}
+                      </div>
+                      {yaRegistrado && (
+                        <span className={`text-xs shrink-0 ${asistio === 1 ? "text-green-400" : "text-gray-500"}`}>
+                          {asistio === 1
+                            ? `Asistió · $${h.sesion!.monto.toLocaleString("es-AR")}`
+                            : "No asistió"}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {error && <p className="text-red-400 text-sm">{error}</p>}
+              {cargando && <p className="text-gray-400 text-sm text-center">Registrando asistencia...</p>}
+
+              <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
                 ← Volver
               </button>
             </div>

@@ -35,14 +35,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  // Verificar si ya existe una sesión para este horario hoy
+  const [existing] = await pool.query(
+    `SELECT idsesion FROM sesiones WHERE idhorario = ? AND idcliente = ? AND fecha = CURDATE()`,
+    [idhorario, idcliente],
+  );
+  if ((existing as any[]).length > 0) {
+    return res.status(409).json({ error: "ya_registrada", mensaje: "La asistencia ya fue registrada para este horario." });
+  }
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
     await conn.query(
       `INSERT INTO sesiones (idcliente, idhorario, fecha, asistio, monto)
-       VALUES (?, ?, CURDATE(), ?, ?)
-       ON DUPLICATE KEY UPDATE asistio = VALUES(asistio), monto = VALUES(monto)`,
+       VALUES (?, ?, CURDATE(), ?, ?)`,
       [idcliente, idhorario, asistio ? 1 : 0, monto],
     );
 
