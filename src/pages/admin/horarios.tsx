@@ -29,6 +29,7 @@ type ProgHorario = { idprograma_horario: number; idestudio: number; estudio_nomb
 type Programa    = { idprograma: number; idcliente: number; cliente_nombre: string; nombre: string; fecha_inicio: string; fecha_fin: string | null; activo: number; horarios: ProgHorario[] };
 type Cliente     = { idcliente: number; nombre: string; dni: string };
 type Estudio     = { idestudio: number; nombre: string };
+type SesionCal   = { idprograma_horario: number; idcliente: number; fecha: string; asistio: number };
 
 type DragOverlay = { colIdx: number; startMin: number; endMin: number };
 type DragState = { colIdx: number; startMin: number; fechaDate: Date; columnTop: number };
@@ -81,7 +82,7 @@ function TimeAxis({ everyN = 1 }: { everyN?: number }) {
 }
 
 // ── ProgramaColumn ────────────────────────────────────────────────────────────
-type Slot = { idprograma: number; nombre: string; cliente_nombre: string; idcliente: number; estudio_nombre: string; hora_inicio: string; hora_fin: string; ci: number };
+type Slot = { idprograma: number; idprograma_horario: number; nombre: string; cliente_nombre: string; idcliente: number; estudio_nombre: string; hora_inicio: string; hora_fin: string; ci: number; sesion: { asistio: number } | null };
 
 function ProgramaColumn({
   slots, isToday, nowY, colIdx, dragOverlay, onMouseDown,
@@ -128,6 +129,9 @@ function ProgramaColumn({
             <p className="text-[11px] font-bold truncate leading-tight">{s.nombre}</p>
             {height > 26 && <p className="text-[10px] opacity-80 truncate">{s.cliente_nombre}</p>}
             {height > 44 && <p className="text-[10px] opacity-60">{s.hora_inicio.slice(0, 5)}–{s.hora_fin.slice(0, 5)} · {s.estudio_nombre}</p>}
+            {s.sesion !== null && (
+              <div className={`absolute top-1 right-1 w-2 h-2 rounded-full border border-white/30 ${s.sesion.asistio ? "bg-green-400" : "bg-red-400"}`} />
+            )}
           </Link>
         );
       })}
@@ -148,6 +152,8 @@ export default function AdminHorarios() {
   const [programas, setProgramas]       = useState<Programa[]>([]);
   const [clientes, setClientes]         = useState<Cliente[]>([]);
   const [estudios, setEstudios]         = useState<Estudio[]>([]);
+  const [sesiones, setSesiones]         = useState<SesionCal[]>([]);
+  const [filtroEstudio, setFiltroEstudio] = useState<number | null>(null);
   const [cargando, setCargando]         = useState(true);
   const [semanaStart, setSemanaStart]   = useState<Date>(getMonday(new Date()));
   const [diaActivoMobile, setDiaActivoMobile] = useState(0);
@@ -179,6 +185,15 @@ export default function AdminHorarios() {
       scrollRef.current.scrollTop = Math.max(0, nowY - 80);
     }
   }, [cargando]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const desde = isoDate(semanaStart);
+    const hasta = isoDate(addDays(semanaStart, 6));
+    fetch(`/api/admin/sesiones?desde=${desde}&hasta=${hasta}`)
+      .then((r) => r.ok ? r.json() : [])
+      .then(setSesiones)
+      .catch(() => {});
+  }, [semanaStart]);
 
   // Global mousemove + mouseup para el drag
   useEffect(() => {
@@ -286,25 +301,33 @@ export default function AdminHorarios() {
   programas.forEach((p, i) => { colorIdxProg[p.idprograma] = i % COLORES.length; });
 
   function slotsParaDia(fechaDate: Date): Slot[] {
-    const dateStr  = isoDate(fechaDate);
+    const dateStr   = isoDate(fechaDate);
     const diaSemana = fechaDate.getDay();
     const result: Slot[] = [];
     programas.forEach(p => {
       if (!p.activo) return;
       if (p.fecha_inicio > dateStr) return;
       if (p.fecha_fin && p.fecha_fin < dateStr) return;
-      p.horarios.filter(h => h.dia_semana === diaSemana).forEach(h => {
-        result.push({
-          idprograma: p.idprograma,
-          nombre: p.nombre,
-          cliente_nombre: p.cliente_nombre,
-          idcliente: p.idcliente,
-          estudio_nombre: h.estudio_nombre,
-          hora_inicio: h.hora_inicio,
-          hora_fin: h.hora_fin,
-          ci: colorIdxProg[p.idprograma] ?? 0,
+      p.horarios
+        .filter(h => h.dia_semana === diaSemana)
+        .filter(h => !filtroEstudio || h.idestudio === filtroEstudio)
+        .forEach(h => {
+          const sesion = sesiones.find(s =>
+            s.idprograma_horario === h.idprograma_horario && s.fecha === dateStr,
+          ) ?? null;
+          result.push({
+            idprograma: p.idprograma,
+            idprograma_horario: h.idprograma_horario,
+            nombre: p.nombre,
+            cliente_nombre: p.cliente_nombre,
+            idcliente: p.idcliente,
+            estudio_nombre: h.estudio_nombre,
+            hora_inicio: h.hora_inicio,
+            hora_fin: h.hora_fin,
+            ci: colorIdxProg[p.idprograma] ?? 0,
+            sesion: sesion ? { asistio: sesion.asistio } : null,
+          });
         });
-      });
     });
     result.sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
     return result;
@@ -347,6 +370,26 @@ export default function AdminHorarios() {
         <button onClick={() => setSemanaStart(d => addDays(d, 7))}
           className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">›</button>
       </div>
+
+      {/* Filtro por estudio */}
+      {estudios.length > 0 && (
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-gray-800 overflow-x-auto">
+          <span className="text-gray-500 text-xs shrink-0">Estudio:</span>
+          <button
+            onClick={() => setFiltroEstudio(null)}
+            className={`shrink-0 text-xs px-2.5 py-1 rounded-full transition-colors ${!filtroEstudio ? "bg-white text-gray-900 font-medium" : "bg-gray-800 text-gray-400 hover:text-gray-200"}`}>
+            Todos
+          </button>
+          {estudios.map(e => (
+            <button
+              key={e.idestudio}
+              onClick={() => setFiltroEstudio(e.idestudio)}
+              className={`shrink-0 text-xs px-2.5 py-1 rounded-full transition-colors ${filtroEstudio === e.idestudio ? "bg-blue-600 text-white font-medium" : "bg-gray-800 text-gray-400 hover:text-gray-200"}`}>
+              {e.nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       {cargando ? (
         <div className="flex-1 flex items-center justify-center">
