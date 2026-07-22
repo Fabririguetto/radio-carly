@@ -38,7 +38,6 @@ const emptyForm = () => ({
   idcliente: "",
   nombre: "",
   descripcion: "",
-  dni_responsable: "",
   fecha_inicio: new Date().toISOString().slice(0, 10),
   fecha_fin: "",
   horarios: [] as Horario[],
@@ -91,7 +90,6 @@ export default function AdminProgramas() {
       idcliente: String(p.idcliente),
       nombre: p.nombre,
       descripcion: p.descripcion ?? "",
-      dni_responsable: p.dni_responsable ?? "",
       fecha_inicio: p.fecha_inicio.slice(0, 10),
       fecha_fin: p.fecha_fin ? p.fecha_fin.slice(0, 10) : "",
       horarios: p.horarios.map((h) => ({ ...h })),
@@ -136,7 +134,6 @@ export default function AdminProgramas() {
       idcliente: Number(form.idcliente),
       nombre: form.nombre,
       descripcion: form.descripcion,
-      dni_responsable: form.dni_responsable,
       fecha_inicio: form.fecha_inicio,
       fecha_fin: form.fecha_fin || null,
       horarios: form.horarios,
@@ -250,7 +247,7 @@ export default function AdminProgramas() {
 
       {/* Modal crear/editar */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 px-4 pb-4 sm:pb-0">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 px-4 pb-4 sm:pb-0 sm:pl-64">
           <div className="bg-gray-900 rounded-2xl p-5 w-full max-w-md max-h-[90dvh] overflow-y-auto space-y-4">
             <h2 className="text-white font-bold text-lg">{editando ? "Editar programa" : "Nuevo programa"}</h2>
 
@@ -260,10 +257,7 @@ export default function AdminProgramas() {
                 <SearchableSelect
                   options={clientes.map((c) => ({ value: String(c.idcliente), label: c.nombre, sublabel: c.dni }))}
                   value={form.idcliente}
-                  onChange={(v) => {
-                    const cli = clientes.find((c) => String(c.idcliente) === v);
-                    setForm((f) => ({ ...f, idcliente: v, dni_responsable: cli?.dni ?? f.dni_responsable }));
-                  }}
+                  onChange={(v) => setForm((f) => ({ ...f, idcliente: v }))}
                   placeholder="Buscar cliente..."
                 />
               </div>
@@ -280,13 +274,6 @@ export default function AdminProgramas() {
                 <textarea rows={2} placeholder="Breve descripción..."
                   value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
                   className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-              </div>
-
-              <div>
-                <label className="text-gray-400 text-sm block mb-1">DNI responsable (opcional)</label>
-                <input type="text" inputMode="numeric" placeholder="Ej: 20123456"
-                  value={form.dni_responsable} onChange={(e) => setForm((f) => ({ ...f, dni_responsable: e.target.value }))}
-                  className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
