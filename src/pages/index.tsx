@@ -69,6 +69,7 @@ export default function Home() {
   const [mpResult, setMpResult] = useState<"ok" | "error" | "pendiente" | null>(null);
 
   const pendingContinuationRef = useRef<(() => Promise<void>) | null>(null);
+  const montoInputRef = useRef<HTMLInputElement>(null);
 
   // Nombre del negocio desde config
   useEffect(() => {
@@ -99,6 +100,13 @@ export default function Home() {
     }
   }, [router.query]); // eslint-disable-line react-hooks/exhaustive-deps
 
+
+  // Foco automático en input de monto al entrar al paso pago (para numpad físico)
+  useEffect(() => {
+    if (paso === "pago" && totalDebido > 0) {
+      setTimeout(() => montoInputRef.current?.focus(), 50);
+    }
+  }, [paso, totalDebido]);
 
   // Countdown idle en paso pago
   useEffect(() => {
@@ -534,6 +542,7 @@ export default function Home() {
                 <div className="space-y-2">
                   <label className="text-gray-400 text-sm">Monto a pagar</label>
                   <input
+                    ref={montoInputRef}
                     type="number"
                     inputMode="numeric"
                     min="1"
