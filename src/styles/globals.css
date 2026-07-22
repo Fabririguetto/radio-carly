@@ -26,13 +26,17 @@ body {
 }
 
 @media print {
-  body > * {
+  /* Ocultar layout de la app, mostrar solo el ticket */
+  #__next > div > header,
+  #__next > div > main {
     display: none !important;
   }
-  body > #__next > * {
-    display: none !important;
-  }
-  .print\:block {
+  #ticket-print {
     display: block !important;
+    position: fixed;
+    inset: 0;
+    background: white;
+    z-index: 9999;
+    padding: 16px;
   }
 }

@@ -15,7 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
          FROM pagos p
          JOIN clientes c ON c.idcliente = p.idcliente
          WHERE p.estado = 'aprobado' AND DATE(p.fecha) = ?
-         ORDER BY p.fecha DESC`,
+         ORDER BY p.fecha DESC
+         LIMIT 500`,
         [fecha],
       );
 

@@ -8,21 +8,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "POST") return res.status(405).end();
 
   const { idcliente, monto } = req.body;
-  if (!idcliente || !monto || monto <= 0) {
+  const idclienteNum = parseInt(String(idcliente), 10);
+  const montoNum     = Number(monto);
+  if (!idclienteNum || idclienteNum <= 0) {
+    return res.status(400).json({ error: "idcliente inválido" });
+  }
+  if (!Number.isFinite(montoNum) || montoNum <= 0) {
     return res.status(400).json({ error: "idcliente y monto válido son requeridos" });
   }
-  if (Number(monto) < 15) {
+  if (montoNum < 15) {
     return res.status(400).json({ error: "El monto mínimo para pagar con QR es $15." });
   }
 
   const [rows] = await pool.query(
     "SELECT nombre FROM clientes WHERE idcliente = ?",
-    [idcliente]
+    [idclienteNum]
   );
   const cliente = (rows as any[])[0];
   if (!cliente) return res.status(404).json({ error: "Cliente no encontrado" });
 
-  const montoStr = Number(monto).toFixed(2);
+  const montoStr = montoNum.toFixed(2);
   const externalRef = `wox-${idcliente}-${Date.now()}`;
   const mp = await getMpConfig();
 
@@ -86,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   await pool.query(
     `INSERT INTO pagos (idcliente, monto, mp_order_id, estado, tipo) VALUES (?, ?, ?, 'pendiente', 'qr')`,
-    [idcliente, monto, order.id]
+    [idclienteNum, montoNum, order.id]
   );
 
   res.status(200).json({ orderId: order.id, qrPos });

@@ -15,6 +15,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Formato de fecha inválido (YYYY-MM-DD)' });
   }
 
+  const daysDiff = Math.floor(
+    (new Date(hasta).getTime() - new Date(desde).getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (daysDiff < 0 || daysDiff > 366) {
+    return res.status(400).json({ error: 'El rango máximo es 366 días' });
+  }
+
   const [[cobrado], [sesiones], deudores] = await Promise.all([
     pool.query(
       `SELECT COALESCE(SUM(monto), 0) AS total

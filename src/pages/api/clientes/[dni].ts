@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     req.socket.remoteAddress ??
     'unknown';
 
-  if (!rateLimit(ip, 15, 60_000)) {
+  if (!await rateLimit(ip, 15, 60_000)) {
     return res.status(429).json({ error: 'Demasiadas solicitudes. Esperá un momento.' });
   }
 

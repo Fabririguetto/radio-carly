@@ -45,16 +45,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const precios = await getPrecioCliente(h.idcliente, hoy);
       const precio_reserva = precios.precio_reserva;
 
-      await conn.query(
+      const [result] = await conn.query(
         `INSERT INTO sesiones (idcliente, idhorario, fecha, asistio, monto)
          VALUES (?, ?, CURDATE(), 0, ?)
          ON DUPLICATE KEY UPDATE asistio = 0, monto = ?`,
         [h.idcliente, h.idhorario, precio_reserva, precio_reserva]
       );
-      await conn.query(
-        `UPDATE ctacte SET egreso = egreso + ?, balance = balance + ? WHERE idcliente = ?`,
-        [precio_reserva, precio_reserva, h.idcliente]
-      );
+      // affectedRows = 1 → inserción nueva; 2 → ya existía (ON DUPLICATE KEY)
+      // Solo actualizar ctacte si la sesión es nueva para evitar doble cobro
+      if ((result as any).affectedRows === 1) {
+        await conn.query(
+          `UPDATE ctacte SET egreso = egreso + ?, balance = balance + ? WHERE idcliente = ?`,
+          [precio_reserva, precio_reserva, h.idcliente]
+        );
+      }
     }
 
     await conn.commit();

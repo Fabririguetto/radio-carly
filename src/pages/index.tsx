@@ -59,6 +59,7 @@ export default function Home() {
   const [qrVencido, setQrVencido] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pagoCobradoRef = useRef(false);
 
   const [notifActiva, setNotifActiva] = useState<NotifActiva | null>(null);
 
@@ -133,11 +134,14 @@ export default function Home() {
     };
   }, [paso]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Polling: detecta pago aprobado cada 3s
+  // Polling: detecta pago aprobado cada 3s.
+  // Se mantiene activo hasta que el pago se detecte o reiniciar() lo limpie,
+  // lo que permite un período de gracia tras el vencimiento del QR.
   useEffect(() => {
-    if (paso !== "qr" || !orderId || pagoCobrado || qrVencido) return;
+    if (paso !== "qr" || !orderId) return;
 
     pollingRef.current = setInterval(async () => {
+      if (pagoCobradoRef.current) return;
       try {
         const res = await fetch(`/api/pagos/estado?orderId=${orderId}`);
         if (!res.ok) return;
@@ -148,6 +152,7 @@ export default function Home() {
           clearInterval(qrCountdownRef.current!);
           qrCountdownRef.current = null;
           if (data.ticket) setTicketData(data.ticket);
+          pagoCobradoRef.current = true;
           setPagoCobrado(true);
           setTimeout(() => window.print(), 200);
           setTimeout(() => reiniciar(), 3000);
@@ -156,7 +161,7 @@ export default function Home() {
     }, 3000);
 
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [paso, orderId, pagoCobrado, qrVencido]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [paso, orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Countdown QR: 60s
   useEffect(() => {
@@ -168,7 +173,8 @@ export default function Home() {
         if (t <= 1) {
           clearInterval(qrCountdownRef.current!);
           qrCountdownRef.current = null;
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+          // El polling sigue activo 2s más (período de gracia) por si el pago
+          // fue escaneado en el último segundo. salirDeQR → reiniciar lo limpia.
           setQrVencido(true);
           setTimeout(() => salirDeQR(), 2000);
           return 0;
@@ -187,17 +193,6 @@ export default function Home() {
     try {
       const res = await fetch(`/api/clientes/${dni.trim()}`);
       if (!res.ok) {
-        const authRes = await fetch("/api/admin/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dni: dni.trim(), password: "" }),
-        });
-        const authData = await authRes.json();
-        if (authRes.status === 401 && authData.error === "Contraseña incorrecta") {
-          sessionStorage.setItem("adminDni", dni.trim());
-          router.push("/admin");
-          return;
-        }
         setError("DNI no encontrado. Consultá con el administrador.");
         setCargando(false);
         return;
@@ -374,6 +369,7 @@ export default function Home() {
     if (sesionCountdownRef.current) { clearInterval(sesionCountdownRef.current); sesionCountdownRef.current = null; }
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     if (qrCountdownRef.current) { clearInterval(qrCountdownRef.current); qrCountdownRef.current = null; }
+    pagoCobradoRef.current = false;
     setError("");
     setPaso("dni");
   }
@@ -702,9 +698,18 @@ export default function Home() {
         </div>
       </main>
 
+      {/* Link discreto al panel de administración */}
+      {paso === "dni" && (
+        <div className="text-center pb-4">
+          <a href="/admin" className="text-gray-700 text-xs hover:text-gray-500 transition-colors">
+            Administración
+          </a>
+        </div>
+      )}
+
       {/* Ticket de impresión — solo visible al imprimir */}
       {ticketData && cliente && (
-        <div className="hidden print:block fixed inset-0 bg-white z-[200] p-4">
+        <div id="ticket-print" className="hidden">
           <div style={{ maxWidth: "80mm", margin: "0 auto", fontFamily: "monospace", fontSize: "12px", color: "#000" }}>
             <div style={{ textAlign: "center", fontWeight: "bold", fontSize: "16px", marginBottom: "8px" }}>
               {ticketData.negocio}

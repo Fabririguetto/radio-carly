@@ -10,9 +10,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
+  // Fast path: verificar sin lock (evita mantener lock durante llamada a MP)
   const [rows] = await pool.query(
     "SELECT idpago, idcliente, monto, estado FROM pagos WHERE mp_order_id = ? LIMIT 1",
-    [String(orderId)]
+    [String(orderId)],
   );
   const pago = (rows as any[])[0];
   if (!pago) return res.status(404).json({ error: "Pago no encontrado" });
@@ -26,31 +27,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 
-  // Consultar MP directamente
+  // Consultar MP
   try {
     const mp = await getMpConfig();
     const orderRes = await fetch(
       `https://api.mercadopago.com/v1/orders/${orderId}`,
-      { headers: { Authorization: `Bearer ${mp.accessToken}` } }
+      { headers: { Authorization: `Bearer ${mp.accessToken}` } },
     );
     if (!orderRes.ok) return res.json({ estado: pago.estado });
 
     const order = await orderRes.json();
     const payment = (order.transactions?.payments ?? []).find(
-      (p: any) => p.status === "processed"
+      (p: any) => p.status === "processed",
     );
 
     if (order.status === "processed" && payment) {
+      // Adquirir lock para actualizar — previene doble procesamiento concurrente
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
+        const [locked] = await conn.query(
+          "SELECT estado FROM pagos WHERE idpago = ? FOR UPDATE",
+          [pago.idpago],
+        );
+        const lockedPago = (locked as any[])[0];
+
+        if (lockedPago?.estado === "aprobado") {
+          // Otro request ya lo procesó; devolver ticket sin modificar ctacte
+          await conn.commit();
+          const [cfgRows] = await pool.query("SELECT nombre_negocio FROM config LIMIT 1");
+          const negocio = (cfgRows as any[])[0]?.nombre_negocio ?? "WOX Rosario";
+          return res.json({
+            estado: "aprobado",
+            ticket: { idpago: pago.idpago, monto: Number(pago.monto), negocio },
+          });
+        }
+
         await conn.query(
           "UPDATE pagos SET estado = 'aprobado', mp_payment_id = ? WHERE idpago = ?",
-          [payment.id, pago.idpago]
+          [payment.id, pago.idpago],
         );
         await conn.query(
           "UPDATE ctacte SET ingreso = ingreso + ?, balance = balance - ? WHERE idcliente = ?",
-          [pago.monto, pago.monto, pago.idcliente]
+          [pago.monto, pago.monto, pago.idcliente],
         );
         await conn.commit();
       } catch (e) {
@@ -59,6 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } finally {
         conn.release();
       }
+
       const [cfgRows] = await pool.query("SELECT nombre_negocio FROM config LIMIT 1");
       const negocio = (cfgRows as any[])[0]?.nombre_negocio ?? "WOX Rosario";
       return res.json({

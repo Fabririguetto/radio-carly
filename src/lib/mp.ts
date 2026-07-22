@@ -9,9 +9,11 @@ export interface MpConfig {
 }
 
 let cache: { config: MpConfig; expiresAt: number } | null = null;
+let pendingLoad: Promise<MpConfig> | null = null;
+let pendingRefresh: Promise<string | null> | null = null;
 const CACHE_TTL = 5 * 60 * 1000;
 
-async function refreshToken(refreshToken: string): Promise<string | null> {
+async function doRefreshToken(refreshToken: string): Promise<string | null> {
   try {
     const res = await fetch("https://api.mercadopago.com/oauth/token", {
       method: "POST",
@@ -28,7 +30,7 @@ async function refreshToken(refreshToken: string): Promise<string | null> {
     const newExpiry = new Date(Date.now() + data.expires_in * 1000);
     await pool.query(
       "UPDATE config SET mp_access_token = ?, mp_refresh_token = ?, mp_token_expires_at = ? WHERE id = 1",
-      [data.access_token, data.refresh_token, newExpiry]
+      [data.access_token, data.refresh_token, newExpiry],
     );
     return data.access_token;
   } catch {
@@ -36,22 +38,25 @@ async function refreshToken(refreshToken: string): Promise<string | null> {
   }
 }
 
-export async function getMpConfig(): Promise<MpConfig> {
-  if (cache && Date.now() < cache.expiresAt) return cache.config;
-
+async function loadConfig(): Promise<MpConfig> {
   const [rows] = await pool.query(
-    "SELECT mp_access_token, mp_refresh_token, mp_collector_id, mp_pos_external_id, mp_webhook_secret, nombre_negocio, mp_token_expires_at FROM config LIMIT 1"
+    "SELECT mp_access_token, mp_refresh_token, mp_collector_id, mp_pos_external_id, mp_webhook_secret, nombre_negocio, mp_token_expires_at FROM config LIMIT 1",
   );
   const row = (rows as any[])[0] ?? {};
 
   let accessToken: string = row.mp_access_token ?? "";
 
-  // Auto-refresh si vence en menos de 7 días
   if (accessToken && row.mp_refresh_token && row.mp_token_expires_at) {
     const expiresAt = new Date(row.mp_token_expires_at).getTime();
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
     if (Date.now() > expiresAt - sevenDays) {
-      const refreshed = await refreshToken(row.mp_refresh_token);
+      // Mutex: una sola llamada de refresh en vuelo a la vez
+      if (!pendingRefresh) {
+        pendingRefresh = doRefreshToken(row.mp_refresh_token).finally(() => {
+          pendingRefresh = null;
+        });
+      }
+      const refreshed = await pendingRefresh;
       if (refreshed) accessToken = refreshed;
     }
   }
@@ -66,6 +71,17 @@ export async function getMpConfig(): Promise<MpConfig> {
 
   cache = { config, expiresAt: Date.now() + CACHE_TTL };
   return config;
+}
+
+export async function getMpConfig(): Promise<MpConfig> {
+  if (cache && Date.now() < cache.expiresAt) return cache.config;
+  // Mutex: una sola carga de config en vuelo a la vez
+  if (!pendingLoad) {
+    pendingLoad = loadConfig().finally(() => {
+      pendingLoad = null;
+    });
+  }
+  return pendingLoad;
 }
 
 export function invalidateMpConfig() {
