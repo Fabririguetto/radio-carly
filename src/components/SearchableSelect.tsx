@@ -12,24 +12,26 @@ type Props = {
 };
 
 export default function SearchableSelect({ options, value, onChange, placeholder = "Buscar...", className = "", compact = false }: Props) {
-  const selected = options.find((o) => o.value === value);
-  const [query, setQuery] = useState(selected?.label ?? "");
+  const [query, setQuery] = useState(() => options.find((o) => o.value === value)?.label ?? "");
   const [open, setOpen] = useState(false);
+  const isFilteringRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sync label when value changes externally
+  // Sincroniza el label solo cuando el valor cambia externamente (no mientras el usuario tipea)
   useEffect(() => {
+    if (isFilteringRef.current) return;
     setQuery(options.find((o) => o.value === value)?.label ?? "");
   }, [value, options]);
 
-  const filtered = query && !selected
+  const filtered = isFilteringRef.current && query
     ? options.filter((o) =>
         o.label.toLowerCase().includes(query.toLowerCase()) ||
-        (o.sublabel ?? "").includes(query)
+        (o.sublabel ?? "").toLowerCase().includes(query.toLowerCase())
       )
     : options;
 
   function select(o: Option) {
+    isFilteringRef.current = false;
     onChange(o.value);
     setQuery(o.label);
     setOpen(false);
@@ -37,7 +39,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
 
   function handleBlur(e: React.FocusEvent) {
     if (containerRef.current?.contains(e.relatedTarget as Node)) return;
-    // Si no seleccionó nada, restaurar label del valor actual
+    isFilteringRef.current = false;
     setQuery(options.find((o) => o.value === value)?.label ?? "");
     setOpen(false);
   }
@@ -49,8 +51,9 @@ export default function SearchableSelect({ options, value, onChange, placeholder
         value={query}
         placeholder={placeholder}
         onChange={(e) => {
+          isFilteringRef.current = true;
           setQuery(e.target.value);
-          onChange(""); // limpiar selección al tipear
+          onChange("");
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
