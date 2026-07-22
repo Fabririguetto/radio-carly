@@ -461,17 +461,31 @@ export default function Home() {
           {paso === "dni" && (
             <div className="space-y-4">
               <h2 className="text-white font-semibold text-lg">Ingresá tu DNI</h2>
-              <div className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 min-h-[62px] flex items-center">
-                {dni ? (
-                  <span className="text-white text-2xl font-mono tracking-widest">{dni}</span>
-                ) : (
-                  <span className="text-gray-500 text-xl">Ej: 12345678</span>
-                )}
-              </div>
-              <NumericKeypad onPress={handleKeyDni} />
+              {esMobile ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Ej: 12345678"
+                  value={dni}
+                  onChange={(e) => setDni(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && buscarCliente()}
+                  className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              ) : (
+                <>
+                  <div className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 min-h-[62px] flex items-center">
+                    {dni ? (
+                      <span className="text-white text-2xl font-mono tracking-widest">{dni}</span>
+                    ) : (
+                      <span className="text-gray-500 text-xl">Ej: 12345678</span>
+                    )}
+                  </div>
+                  <NumericKeypad onPress={handleKeyDni} />
+                </>
+              )}
               {error && <p className="text-red-400 text-sm">{error}</p>}
               <button
-                onPointerDown={(e) => { e.preventDefault(); buscarCliente(); }}
+                onClick={buscarCliente}
                 disabled={cargando || !dni}
                 className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors text-lg"
               >
@@ -572,24 +586,46 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-gray-400 text-sm">Monto a pagar</label>
-                    <button
-                      type="button"
-                      onPointerDown={(e) => { e.preventDefault(); setMontoPagar(String(totalDebido)); }}
-                      className="text-blue-400 text-sm"
-                    >
-                      Pagar total (${totalDebido.toLocaleString("es-AR")})
-                    </button>
-                  </div>
-                  <div className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 min-h-[62px] flex items-center">
-                    {montoPagar ? (
-                      <span className="text-white text-2xl font-mono">${Number(montoPagar).toLocaleString("es-AR")}</span>
-                    ) : (
-                      <span className="text-gray-500 text-xl">Ingresá un monto</span>
-                    )}
-                  </div>
-                  <NumericKeypad onPress={handleKeyMonto} />
+                  {esMobile ? (
+                    <>
+                      <label className="text-gray-400 text-sm">Monto a pagar</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        value={montoPagar}
+                        onChange={(e) => setMontoPagar(e.target.value)}
+                        className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        onClick={() => setMontoPagar(String(totalDebido))}
+                        className="text-blue-400 text-sm py-1"
+                      >
+                        Pagar total (${totalDebido.toLocaleString("es-AR")})
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <label className="text-gray-400 text-sm">Monto a pagar</label>
+                        <button
+                          type="button"
+                          onPointerDown={(e) => { e.preventDefault(); setMontoPagar(String(totalDebido)); }}
+                          className="text-blue-400 text-sm"
+                        >
+                          Pagar total (${totalDebido.toLocaleString("es-AR")})
+                        </button>
+                      </div>
+                      <div className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 min-h-[62px] flex items-center">
+                        {montoPagar ? (
+                          <span className="text-white text-2xl font-mono">${Number(montoPagar).toLocaleString("es-AR")}</span>
+                        ) : (
+                          <span className="text-gray-500 text-xl">Ingresá un monto</span>
+                        )}
+                      </div>
+                      <NumericKeypad onPress={handleKeyMonto} />
+                    </>
+                  )}
                 </div>
 
                 {error && <p className="text-red-400 text-sm">{error}</p>}
