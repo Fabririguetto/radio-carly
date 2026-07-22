@@ -51,6 +51,7 @@ export default function AdminProgramas() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [estudios, setEstudios] = useState<Estudio[]>([]);
 
+  const [filtro, setFiltro] = useState("");
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editando, setEditando] = useState<Programa | null>(null);
   const [form, setForm] = useState(emptyForm());
@@ -185,6 +186,14 @@ export default function AdminProgramas() {
           </button>
         </div>
 
+        <input
+          type="text"
+          placeholder="Buscar por programa o cliente..."
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          className="w-full bg-gray-900 text-white placeholder-gray-500 border border-gray-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+
         <div className="bg-gray-900 rounded-2xl overflow-hidden">
           {cargando ? (
             <p className="text-gray-500 text-sm p-5">Cargando...</p>
@@ -192,7 +201,11 @@ export default function AdminProgramas() {
             <p className="text-gray-500 text-sm p-5">No hay programas cargados.</p>
           ) : (
             <div className="divide-y divide-gray-800">
-              {programas.map((p) => (
+              {programas.filter((p) => {
+                if (!filtro.trim()) return true;
+                const q = filtro.toLowerCase();
+                return p.nombre.toLowerCase().includes(q) || p.cliente_nombre.toLowerCase().includes(q);
+              }).map((p) => (
                 <div key={p.idprograma} className="px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
