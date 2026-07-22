@@ -18,6 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
      LEFT JOIN estudios e ON e.idestudio = ph.idestudio
      LEFT JOIN sesiones s
             ON s.idprograma_horario = ph.idprograma_horario
+           AND s.idcliente = p.idcliente
            AND s.fecha = CURDATE()
      WHERE p.idcliente = ?
        AND p.activo = 1

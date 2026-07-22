@@ -366,6 +366,12 @@ export default function Home() {
         return;
       }
 
+      if (!res.ok) {
+        setError("Error al registrar la asistencia. Intentá de nuevo.");
+        setCargando(false);
+        return;
+      }
+
       const data = await res.json();
       const nuevoBalance = Number(cliente.balance) + Number(data.monto);
       setCliente({ ...cliente, balance: nuevoBalance });
