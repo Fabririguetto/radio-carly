@@ -237,7 +237,12 @@ export default function AdminConfig() {
         setMpCargando(false);
         return;
       }
-      window.location.href = data.url;
+      if (window.innerWidth < 640) {
+        window.location.href = data.url;
+      } else {
+        window.open(data.url, "_blank", "noopener,noreferrer");
+        setMpCargando(false);
+      }
     } catch {
       setErrorMp("Error de red. Intentá de nuevo.");
       setMpCargando(false);
