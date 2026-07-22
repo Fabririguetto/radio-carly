@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     pool.query(
       `SELECT COALESCE(SUM(monto), 0) AS total
        FROM pagos
-       WHERE estado = 'aprobado' AND DATE(fecha) BETWEEN ? AND ?`,
+       WHERE estado = 'aprobado' AND tipo IN ('qr','manual') AND DATE(fecha) BETWEEN ? AND ?`,
       [desde, hasta],
     ),
     pool.query(

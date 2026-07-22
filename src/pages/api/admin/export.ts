@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (/^\d{4}-\d{2}$/.test(mesStr)) {
     const [year, month] = mesStr.split('-');
     [rows] = await pool.query(
-      `SELECT p.fecha, c.nombre, c.dni, p.monto, p.estado, p.mp_payment_id
+      `SELECT p.fecha, c.nombre, c.dni, p.monto, p.tipo, p.estado, p.mp_payment_id
        FROM pagos p
        JOIN clientes c ON c.idcliente = p.idcliente
        WHERE YEAR(p.fecha) = ? AND MONTH(p.fecha) = ?
@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ) as any;
   } else {
     [rows] = await pool.query(
-      `SELECT p.fecha, c.nombre, c.dni, p.monto, p.estado, p.mp_payment_id
+      `SELECT p.fecha, c.nombre, c.dni, p.monto, p.tipo, p.estado, p.mp_payment_id
        FROM pagos p
        JOIN clientes c ON c.idcliente = p.idcliente
        WHERE YEAR(p.fecha) = YEAR(CURDATE()) AND MONTH(p.fecha) = MONTH(CURDATE())
@@ -29,11 +29,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ) as any;
   }
 
-  const header = 'Fecha,Cliente,DNI,Monto,Estado,MP Payment ID\n';
+  const header = 'Fecha,Cliente,DNI,Monto,Tipo,Estado,MP Payment ID\n';
   const csvRows = rows.map((r: any) => {
     const fecha = new Date(r.fecha).toLocaleDateString('es-AR');
     const nombre = `"${String(r.nombre).replace(/"/g, '""')}"`;
-    return `${fecha},${nombre},${r.dni},${Number(r.monto).toFixed(2)},${r.estado},${r.mp_payment_id ?? ''}`;
+    return `${fecha},${nombre},${r.dni},${Number(r.monto).toFixed(2)},${r.tipo},${r.estado},${r.mp_payment_id ?? ''}`;
   });
 
   const filename = /^\d{4}-\d{2}$/.test(mesStr)

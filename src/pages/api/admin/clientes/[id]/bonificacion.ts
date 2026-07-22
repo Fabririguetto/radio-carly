@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Insertar pago manual a favor del cliente
     await conn.query(
-      "INSERT INTO pagos (idcliente, monto, estado, motivo) VALUES (?, ?, 'aprobado', ?)",
+      "INSERT INTO pagos (idcliente, monto, estado, tipo, motivo) VALUES (?, ?, 'aprobado', 'bonificacion', ?)",
       [id, Number(monto), motivo.trim()],
     );
 

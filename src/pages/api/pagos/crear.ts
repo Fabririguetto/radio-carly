@@ -85,7 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const qrPos = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
 
   await pool.query(
-    `INSERT INTO pagos (idcliente, monto, mp_order_id, estado) VALUES (?, ?, ?, 'pendiente')`,
+    `INSERT INTO pagos (idcliente, monto, mp_order_id, estado, tipo) VALUES (?, ?, ?, 'pendiente', 'qr')`,
     [idcliente, monto, order.id]
   );
 

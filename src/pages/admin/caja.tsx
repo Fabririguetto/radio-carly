@@ -7,9 +7,16 @@ type Pago = {
   idpago: number;
   monto: number;
   fecha: string;
+  tipo: 'qr' | 'manual' | 'bonificacion';
   motivo: string | null;
   nombre: string;
   dni: string;
+};
+
+const TIPO_BADGE: Record<string, { label: string; cls: string }> = {
+  qr:           { label: "QR",      cls: "bg-blue-900/60 text-blue-300" },
+  manual:       { label: "Efectivo",cls: "bg-gray-700 text-gray-300" },
+  bonificacion: { label: "Bonif.",  cls: "bg-yellow-900/60 text-yellow-300" },
 };
 
 type Cliente = { idcliente: number; nombre: string; dni: string };
@@ -107,7 +114,10 @@ export default function AdminCaja() {
         <div className="bg-gray-900 rounded-2xl p-5">
           <p className="text-gray-400 text-xs uppercase tracking-wide">Total recaudado</p>
           <p className="text-green-400 font-bold text-3xl mt-1">{fmt(total)}</p>
-          <p className="text-gray-500 text-xs mt-1">{fmtFecha(fecha)} · {pagos.length} {pagos.length === 1 ? "pago" : "pagos"}</p>
+          <p className="text-gray-500 text-xs mt-1">
+            {fmtFecha(fecha)} · {pagos.length} {pagos.length === 1 ? "pago" : "pagos"}
+            {pagos.some((p) => p.tipo === 'bonificacion') && " · excluye bonificaciones"}
+          </p>
         </div>
 
         {/* Botón registrar pago manual */}
@@ -131,13 +141,22 @@ export default function AdminCaja() {
               {pagos.map((p) => (
                 <div key={p.idpago} className="px-4 py-3.5 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-white font-medium truncate">{p.nombre}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-medium truncate">{p.nombre}</p>
+                      {TIPO_BADGE[p.tipo] && (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${TIPO_BADGE[p.tipo].cls}`}>
+                          {TIPO_BADGE[p.tipo].label}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-gray-500 text-xs mt-0.5">
                       {fmtHora(p.fecha)} · DNI {p.dni}
                       {p.motivo ? ` · ${p.motivo}` : ""}
                     </p>
                   </div>
-                  <span className="text-green-400 font-bold text-sm shrink-0">{fmt(p.monto)}</span>
+                  <span className={`font-bold text-sm shrink-0 ${p.tipo === 'bonificacion' ? 'text-yellow-400' : 'text-green-400'}`}>
+                    {fmt(p.monto)}
+                  </span>
                 </div>
               ))}
             </div>

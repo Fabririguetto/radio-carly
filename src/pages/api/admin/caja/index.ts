@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
       const [rows] = await pool.query(
-        `SELECT p.idpago, p.monto, p.fecha, p.motivo,
+        `SELECT p.idpago, p.monto, p.fecha, p.tipo, p.motivo,
                 c.nombre, c.dni
          FROM pagos p
          JOIN clientes c ON c.idcliente = p.idcliente
@@ -20,7 +20,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
 
       const pagos = rows as any[];
-      const total = pagos.reduce((s, p) => s + Number(p.monto), 0);
+      const total = pagos
+        .filter((p) => p.tipo !== 'bonificacion')
+        .reduce((s, p) => s + Number(p.monto), 0);
       return res.status(200).json({ pagos, total });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
@@ -37,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       await conn.beginTransaction();
       await conn.query(
-        "INSERT INTO pagos (idcliente, monto, estado, motivo) VALUES (?, ?, 'aprobado', ?)",
+        "INSERT INTO pagos (idcliente, monto, estado, tipo, motivo) VALUES (?, ?, 'aprobado', 'manual', ?)",
         [idcliente, Number(monto), motivo?.trim() || null],
       );
       await conn.query(
