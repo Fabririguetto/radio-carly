@@ -7,28 +7,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { id } = req.query as { id: string };
   const { monto, motivo } = req.body;
 
-  if (!monto || Number(monto) <= 0) {
+  const montoNum = Number(monto);
+  if (!monto || montoNum === 0 || !Number.isFinite(montoNum)) {
     return res.status(400).json({ error: "Monto inválido" });
   }
   if (!motivo?.trim()) {
     return res.status(400).json({ error: "El motivo es requerido" });
   }
 
+  const esCredito = montoNum > 0;
+  const abs = Math.abs(montoNum);
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    // Insertar pago manual a favor del cliente
     await conn.query(
-      "INSERT INTO pagos (idcliente, monto, estado, tipo, motivo) VALUES (?, ?, 'aprobado', 'bonificacion', ?)",
-      [id, Number(monto), motivo.trim()],
+      "INSERT INTO pagos (idcliente, monto, estado, tipo, motivo) VALUES (?, ?, 'aprobado', ?, ?)",
+      [id, abs, esCredito ? 'bonificacion' : 'cargo', motivo.trim()],
     );
 
-    // Acreditar en cuenta corriente
-    await conn.query(
-      "UPDATE ctacte SET ingreso = ingreso + ?, balance = balance - ? WHERE idcliente = ?",
-      [Number(monto), Number(monto), id],
-    );
+    if (esCredito) {
+      // Crédito: reduce la deuda
+      await conn.query(
+        "UPDATE ctacte SET ingreso = ingreso + ?, balance = balance - ? WHERE idcliente = ?",
+        [abs, abs, id],
+      );
+    } else {
+      // Cargo (ej. saldo inicial): aumenta la deuda
+      await conn.query(
+        "UPDATE ctacte SET egreso = egreso + ?, balance = balance + ? WHERE idcliente = ?",
+        [abs, abs, id],
+      );
+    }
 
     await conn.commit();
     return res.status(201).json({ ok: true });

@@ -7,7 +7,7 @@ type Pago = {
   idpago: number;
   monto: number;
   fecha: string;
-  tipo: 'qr' | 'manual' | 'bonificacion';
+  tipo: 'qr' | 'manual' | 'bonificacion' | 'cargo';
   motivo: string | null;
   nombre: string;
   dni: string;
@@ -17,6 +17,7 @@ const TIPO_BADGE: Record<string, { label: string; cls: string }> = {
   qr:           { label: "QR",      cls: "bg-blue-900/60 text-blue-300" },
   manual:       { label: "Efectivo",cls: "bg-gray-700 text-gray-300" },
   bonificacion: { label: "Bonif.",  cls: "bg-yellow-900/60 text-yellow-300" },
+  cargo:        { label: "Cargo",   cls: "bg-red-900/60 text-red-300" },
 };
 
 type Cliente = { idcliente: number; nombre: string; dni: string };

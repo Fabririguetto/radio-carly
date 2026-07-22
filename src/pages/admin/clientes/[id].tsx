@@ -95,7 +95,7 @@ export default function ClienteDetalle() {
   }
 
   async function guardarBonificacion() {
-    if (!montoBonif || Number(montoBonif) <= 0) { setErrorBonif("Ingresá un monto válido."); return; }
+    if (!montoBonif || Number(montoBonif) === 0 || !Number.isFinite(Number(montoBonif))) { setErrorBonif("Ingresá un monto válido (negativo para cargar deuda)."); return; }
     if (!motivoBonif.trim()) { setErrorBonif("El motivo es requerido."); return; }
     setGuardandoBonif(true); setErrorBonif("");
     const res = await fetch(`/api/admin/clientes/${id}/bonificacion`, {
@@ -439,13 +439,13 @@ export default function ClienteDetalle() {
       {modalBonif && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 px-4 pb-4 sm:pb-0">
           <div className="bg-gray-900 rounded-2xl p-5 w-full max-w-sm space-y-4">
-            <h2 className="text-white font-bold text-lg">Cargar bonificación</h2>
+            <h2 className="text-white font-bold text-lg">Bonificación / Cargo</h2>
             <div className="space-y-3">
               <div>
-                <label className="text-gray-400 text-sm block mb-1.5">Monto a acreditar ($)</label>
+                <label className="text-gray-400 text-sm block mb-1.5">Monto ($) — negativo para cargar deuda</label>
                 <input
-                  type="number" inputMode="numeric" min="1"
-                  placeholder="Ej: 5000"
+                  type="number" inputMode="numeric"
+                  placeholder="Ej: 5000 ó -5000"
                   value={montoBonif}
                   onChange={(e) => setMontoBonif(e.target.value)}
                   className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -476,7 +476,7 @@ export default function ClienteDetalle() {
                 disabled={guardandoBonif}
                 className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
               >
-                {guardandoBonif ? "Guardando..." : "Acreditar"}
+                {guardandoBonif ? "Guardando..." : Number(montoBonif) < 0 ? "Cargar deuda" : "Acreditar"}
               </button>
             </div>
           </div>

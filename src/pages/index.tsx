@@ -248,13 +248,19 @@ export default function Home() {
     setCargando(false);
   }
 
+  function isHorarioActivo(horaInicio: string, horaFin: string): boolean {
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const parse = (t: string) => { const p = String(t).split(":"); return Number(p[0]) * 60 + Number(p[1]); };
+    return nowMins >= parse(horaInicio) - 15 && nowMins < parse(horaFin);
+  }
+
   async function continuarFlujo(data: Cliente) {
     const resSesion = await fetch(`/api/sesiones/hoy?idcliente=${data.idcliente}`);
     const dataSesion = await resSesion.json();
     const horarios: HorarioConSesion[] = dataSesion.horarios ?? [];
 
     if (horarios.length === 0) {
-      // Sin horarios hoy → ir directo a pago con saldo actual
       setTotalDebido(data.balance);
       setMontoPagar(data.balance > 0 ? String(data.balance) : "");
       setCargando(false);
@@ -266,11 +272,61 @@ export default function Home() {
 
     const pendientes = horarios.filter((h) => h.sesion === null);
     if (pendientes.length === 0) {
-      // Todos los horarios ya registrados → ir a pago con saldo actual
       setTotalDebido(data.balance);
       setMontoPagar(data.balance > 0 ? String(data.balance) : "");
       setCargando(false);
       setPaso("pago");
+      return;
+    }
+
+    // Si hay exactamente un horario activo ahora (ventana de 15 min antes hasta fin),
+    // registrar asistencia automáticamente sin pasar por la pantalla de selección.
+    const activos = pendientes.filter((h) => isHorarioActivo(h.hora_inicio, h.hora_fin));
+    if (activos.length === 1) {
+      const h = activos[0];
+      try {
+        const res = await fetch("/api/sesiones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idcliente: data.idcliente, idhorario: h.idhorario, asistio: true }),
+        });
+        if (res.status === 403) {
+          const errData = await res.json();
+          setError(errData.mensaje ?? "Deuda excedida.");
+          setTotalDebido(data.balance);
+          setMontoPagar(data.balance > 0 ? String(data.balance) : "");
+          setCargando(false);
+          setPaso("pago");
+          return;
+        }
+        if (res.status === 409) {
+          // Ya registrada por otra vía → ir a pago con saldo actual
+          setTotalDebido(data.balance);
+          setMontoPagar(data.balance > 0 ? String(data.balance) : "");
+          setCargando(false);
+          setPaso("pago");
+          return;
+        }
+        const sesData = await res.json();
+        const nuevoBalance = data.balance + sesData.monto;
+        setCliente({ ...data, balance: nuevoBalance });
+        setSesion({
+          idsesion: 0,
+          idhorario: h.idhorario,
+          asistio: 1,
+          monto: sesData.monto,
+          hora_inicio: h.hora_inicio,
+          hora_fin: h.hora_fin,
+          estudio_nombre: h.estudio_nombre,
+        });
+        setTotalDebido(nuevoBalance);
+        setMontoPagar(nuevoBalance > 0 ? String(nuevoBalance) : "");
+        setCargando(false);
+        setPaso("pago");
+      } catch {
+        setError("Error al registrar la asistencia.");
+        setCargando(false);
+      }
       return;
     }
 
