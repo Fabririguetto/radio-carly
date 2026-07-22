@@ -16,8 +16,10 @@ async function verifyToken(token: string): Promise<boolean> {
     const expiresAt = token.slice(0, dot);
     const sig = token.slice(dot + 1);
 
-    const sec = process.env.ADMIN_TOKEN_SECRET ?? process.env.ADMIN_PASSWORD;
-    if (!sec) return false;
+    const version = process.env.ADMIN_TOKEN_VERSION ?? '1';
+    const base    = process.env.ADMIN_TOKEN_SECRET ?? process.env.ADMIN_PASSWORD;
+    if (!base) return false;
+    const sec = `v${version}:${base}`;
 
     const key = await crypto.subtle.importKey(
       'raw',
