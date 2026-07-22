@@ -6,6 +6,7 @@ const ADMIN_COOKIE = 'admin_session';
 const PUBLIC_ADMIN_PATHS = new Set([
   '/api/admin/auth',
   '/api/admin/mp-connect-webhook',
+  '/api/admin/mp-oauth-callback',
 ]);
 
 async function verifyToken(token: string): Promise<boolean> {
