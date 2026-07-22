@@ -28,6 +28,36 @@ type Horario = {
 
 type Paso = "dni" | "notif" | "pago" | "qr" | "mp_result";
 
+function NumericKeypad({ onPress }: { onPress: (key: string) => void }) {
+  const keys = ["1","2","3","4","5","6","7","8","9","⌫","0",""];
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {keys.map((k, i) =>
+        k === "" ? <div key={i} /> : (
+          <button
+            key={i}
+            type="button"
+            onPointerDown={(e) => { e.preventDefault(); onPress(k); }}
+            className={`rounded-2xl py-5 text-2xl font-semibold select-none transition-all active:scale-95 ${
+              k === "⌫"
+                ? "bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-gray-300"
+                : "bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white"
+            }`}
+          >
+            {k === "⌫" ? (
+              <span className="flex justify-center">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                </svg>
+              </span>
+            ) : k}
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
 type NotifActiva = {
   idnotificacion: number;
   titulo: string;
@@ -61,15 +91,14 @@ export default function Home() {
 
   const [notifActiva, setNotifActiva] = useState<NotifActiva | null>(null);
 
+  const [totalDebido, setTotalDebido] = useState(0);
   const [negocio, setNegocio] = useState("Estudio");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
   const [esMobile, setEsMobile] = useState(false);
   const [mpResult, setMpResult] = useState<"ok" | "error" | "pendiente" | null>(null);
 
-  const dniInputRef = useRef<HTMLInputElement>(null);
   const pendingContinuationRef = useRef<(() => Promise<void>) | null>(null);
-  const montoInputRef = useRef<HTMLInputElement>(null);
 
   // Nombre del negocio desde config + detección mobile
   useEffect(() => {
@@ -91,14 +120,6 @@ export default function Home() {
     }
   }, [router.query]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-focus inputs al cambiar de paso
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (paso === "dni") dniInputRef.current?.focus();
-      if (paso === "pago") montoInputRef.current?.focus();
-    }, 80);
-    return () => clearTimeout(t);
-  }, [paso]);
 
   // Countdown idle en paso pago
   useEffect(() => {
@@ -225,22 +246,15 @@ export default function Home() {
     if (dataSesion.sesion) {
       setSesion(dataSesion.sesion);
       const monto = data.balance + dataSesion.sesion.monto;
-      setMontoPagar(String(monto));
-      if (monto > 0) {
-        await generarQRPara(data.idcliente, monto);
-      } else {
-        setPaso("pago");
-      }
+      setTotalDebido(monto);
+      setMontoPagar(monto > 0 ? String(monto) : "");
+      setPaso("pago");
     } else if (dataSesion.horario_activo) {
       await registrarSesion(data, dataSesion.horario_activo);
     } else {
-      const monto = data.balance;
-      setMontoPagar(String(monto));
-      if (monto > 0) {
-        await generarQRPara(data.idcliente, monto);
-      } else {
-        setPaso("pago");
-      }
+      setTotalDebido(data.balance);
+      setMontoPagar(data.balance > 0 ? String(data.balance) : "");
+      setPaso("pago");
     }
   }
 
@@ -274,14 +288,10 @@ export default function Home() {
       if (res.status === 403) {
         const data = await res.json();
         setError(data.mensaje ?? "Deuda excedida. Pagá el saldo pendiente.");
-        const monto = Number(cl.balance);
-        setMontoPagar(String(monto));
-        if (monto > 0) {
-          setCliente(cl);
-          await generarQRPara(cl.idcliente, monto);
-        } else {
-          setPaso("pago");
-        }
+        const bal = Number(cl.balance);
+        setTotalDebido(bal);
+        setMontoPagar(bal > 0 ? String(bal) : "");
+        setPaso("pago");
         return;
       }
 
@@ -289,12 +299,9 @@ export default function Home() {
       const nuevoBalance = Number(cl.balance) + Number(data.monto);
       setCliente({ ...cl, balance: nuevoBalance });
       setSesion({ ...data, idhorario: hor.idhorario, asistio: 1, estudio_nombre: hor.estudio_nombre });
-      setMontoPagar(String(nuevoBalance));
-      if (nuevoBalance > 0) {
-        await generarQRPara(cl.idcliente, nuevoBalance);
-      } else {
-        setPaso("pago");
-      }
+      setTotalDebido(nuevoBalance);
+      setMontoPagar(nuevoBalance > 0 ? String(nuevoBalance) : "");
+      setPaso("pago");
     } catch {
       setError("Error al registrar la sesión.");
     }
@@ -333,19 +340,21 @@ export default function Home() {
   }
 
   async function generarQR() {
-    if (!cliente || !montoPagar || Number(montoPagar) <= 0) { setError("Ingresá un monto válido."); return; }
-    await generarQRPara(cliente.idcliente, Number(montoPagar));
+    const monto = montoPagar ? Number(montoPagar) : totalDebido;
+    if (!cliente || monto <= 0) { setError("Ingresá un monto válido."); return; }
+    await generarQRPara(cliente.idcliente, monto);
   }
 
   async function pagarConMP() {
-    if (!cliente || !montoPagar || Number(montoPagar) <= 0) { setError("Ingresá un monto válido."); return; }
+    const monto = montoPagar ? Number(montoPagar) : totalDebido;
+    if (!cliente || monto <= 0) { setError("Ingresá un monto válido."); return; }
     setCargando(true);
     setError("");
     try {
       const res = await fetch("/api/pagos/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idcliente: cliente.idcliente, monto: Number(montoPagar) }),
+        body: JSON.stringify({ idcliente: cliente.idcliente, monto }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -357,6 +366,26 @@ export default function Home() {
     } catch {
       setError("Error de conexión. Intentá de nuevo.");
       setCargando(false);
+    }
+  }
+
+  function handleKeyDni(key: string) {
+    if (key === "⌫") {
+      setDni((d) => d.slice(0, -1));
+    } else {
+      setDni((d) => (d.length < 10 ? d + key : d));
+    }
+  }
+
+  function handleKeyMonto(key: string) {
+    if (key === "⌫") {
+      setMontoPagar((m) => m.slice(0, -1));
+    } else {
+      setMontoPagar((m) => {
+        if (m === "0") return key;
+        if (m.length >= 7) return m;
+        return m + key;
+      });
     }
   }
 
@@ -432,20 +461,18 @@ export default function Home() {
           {paso === "dni" && (
             <div className="space-y-4">
               <h2 className="text-white font-semibold text-lg">Ingresá tu DNI</h2>
-              <input
-                ref={dniInputRef}
-                type="text"
-                inputMode="numeric"
-                placeholder="Ej: 12345678"
-                value={dni}
-                onChange={(e) => setDni(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && buscarCliente()}
-                className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 min-h-[62px] flex items-center">
+                {dni ? (
+                  <span className="text-white text-2xl font-mono tracking-widest">{dni}</span>
+                ) : (
+                  <span className="text-gray-500 text-xl">Ej: 12345678</span>
+                )}
+              </div>
+              <NumericKeypad onPress={handleKeyDni} />
               {error && <p className="text-red-400 text-sm">{error}</p>}
               <button
-                onClick={buscarCliente}
-                disabled={cargando}
+                onPointerDown={(e) => { e.preventDefault(); buscarCliente(); }}
+                disabled={cargando || !dni}
                 className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors text-lg"
               >
                 {cargando ? "Buscando..." : "Continuar"}
@@ -503,7 +530,7 @@ export default function Home() {
           {/* PASO 2: Sin deuda / o monto manual */}
           {paso === "pago" && cliente && (
             sesionExpirada ? <ExpiryScreen /> :
-            Number(montoPagar) <= 0 ? (
+            totalDebido <= 0 ? (
               <div className="py-8 space-y-4 text-center">
                 <div className="flex justify-center">
                   <div className="w-20 h-20 rounded-full bg-green-600/20 flex items-center justify-center">
@@ -532,7 +559,7 @@ export default function Home() {
                   <div className="mt-3 pt-3 border-t border-gray-700">
                     <p className="text-gray-400 text-xs uppercase tracking-wide">Deuda total</p>
                     <p className="text-yellow-400 font-bold text-3xl mt-0.5">
-                      ${Number(cliente.balance).toLocaleString("es-AR")}
+                      ${totalDebido.toLocaleString("es-AR")}
                     </p>
                     {sesion && (
                       <p className="text-gray-500 text-xs mt-1">
@@ -545,25 +572,24 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-gray-400 text-sm">Monto a pagar</label>
-                  <input
-                    ref={montoInputRef}
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    value={montoPagar}
-                    onChange={(e) => setMontoPagar(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !cargando && Number(montoPagar) > 0) generarQR();
-                    }}
-                    className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={() => { setMontoPagar(String(cliente.balance)); montoInputRef.current?.focus(); }}
-                    className="text-blue-400 text-sm py-1"
-                  >
-                    Pagar total (${Number(cliente.balance).toLocaleString("es-AR")})
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <label className="text-gray-400 text-sm">Monto a pagar</label>
+                    <button
+                      type="button"
+                      onPointerDown={(e) => { e.preventDefault(); setMontoPagar(String(totalDebido)); }}
+                      className="text-blue-400 text-sm"
+                    >
+                      Pagar total (${totalDebido.toLocaleString("es-AR")})
+                    </button>
+                  </div>
+                  <div className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 min-h-[62px] flex items-center">
+                    {montoPagar ? (
+                      <span className="text-white text-2xl font-mono">${Number(montoPagar).toLocaleString("es-AR")}</span>
+                    ) : (
+                      <span className="text-gray-500 text-xl">Ingresá un monto</span>
+                    )}
+                  </div>
+                  <NumericKeypad onPress={handleKeyMonto} />
                 </div>
 
                 {error && <p className="text-red-400 text-sm">{error}</p>}
