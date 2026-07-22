@@ -125,11 +125,11 @@ export default function AdminStats() {
   const rangoActual = rangoDePeriodo(periodo, desde, hasta);
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-6 sm:pl-64">
       <div className="max-w-lg mx-auto space-y-5">
 
         {/* Header */}
-        <h1 className="text-white font-bold text-xl">Caja</h1>
+        <h1 className="text-white font-bold text-xl pl-12">Estadísticas</h1>
 
         {/* Selector de período */}
         <div className="bg-gray-900 rounded-2xl p-4 space-y-3">

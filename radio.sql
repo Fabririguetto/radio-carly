@@ -130,6 +130,7 @@ CREATE TABLE `pagos` (
   `mp_order_id` varchar(255) DEFAULT NULL,
   `mp_payment_id` varchar(255) DEFAULT NULL,
   `estado` enum('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
+  `motivo` varchar(200) DEFAULT NULL,
   `fecha` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`idpago`),
   KEY `idcliente` (`idcliente`),
@@ -168,4 +169,95 @@ CREATE TABLE `sesiones` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-07-20 23:09:06
+--
+-- Table structure for table `precios_historial`
+--
+
+DROP TABLE IF EXISTS `precios_historial`;
+CREATE TABLE `precios_historial` (
+  `idhistorial` int NOT NULL AUTO_INCREMENT,
+  `idcliente` int NOT NULL,
+  `precio_hora` decimal(10,2) NOT NULL,
+  `precio_reserva` decimal(10,2) NOT NULL,
+  `fecha_desde` date NOT NULL,
+  `fecha_hasta` date DEFAULT NULL,
+  PRIMARY KEY (`idhistorial`),
+  KEY `idcliente` (`idcliente`),
+  CONSTRAINT `precios_historial_ibfk_1` FOREIGN KEY (`idcliente`) REFERENCES `clientes` (`idcliente`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Table structure for table `notificaciones`
+--
+
+DROP TABLE IF EXISTS `notificaciones`;
+CREATE TABLE `notificaciones` (
+  `idnotificacion` int NOT NULL AUTO_INCREMENT,
+  `titulo` varchar(200) NOT NULL,
+  `texto` text NOT NULL,
+  `tipo` enum('general','aumento_cuota') NOT NULL DEFAULT 'general',
+  `precio_nuevo` decimal(10,2) DEFAULT NULL,
+  `fecha_inicio` date NOT NULL,
+  `fecha_expiracion` date NOT NULL,
+  `para_todos` tinyint(1) NOT NULL DEFAULT '0',
+  `creada_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`idnotificacion`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Table structure for table `notificaciones_clientes`
+--
+
+DROP TABLE IF EXISTS `notificaciones_clientes`;
+CREATE TABLE `notificaciones_clientes` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `idnotificacion` int NOT NULL,
+  `idcliente` int NOT NULL,
+  `aceptada` tinyint(1) NOT NULL DEFAULT '0',
+  `fecha_aceptacion` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `notif_cliente` (`idnotificacion`,`idcliente`),
+  KEY `idcliente` (`idcliente`),
+  CONSTRAINT `nc_ibfk_1` FOREIGN KEY (`idnotificacion`) REFERENCES `notificaciones` (`idnotificacion`) ON DELETE CASCADE,
+  CONSTRAINT `nc_ibfk_2` FOREIGN KEY (`idcliente`) REFERENCES `clientes` (`idcliente`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Table structure for table `programas`
+--
+
+DROP TABLE IF EXISTS `programas`;
+CREATE TABLE `programas` (
+  `idprograma` int NOT NULL AUTO_INCREMENT,
+  `idcliente` int NOT NULL,
+  `nombre` varchar(150) NOT NULL,
+  `descripcion` text DEFAULT NULL,
+  `dni_responsable` varchar(20) DEFAULT NULL,
+  `fecha_inicio` date NOT NULL,
+  `fecha_fin` date DEFAULT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  PRIMARY KEY (`idprograma`),
+  KEY `idcliente` (`idcliente`),
+  CONSTRAINT `programas_ibfk_1` FOREIGN KEY (`idcliente`) REFERENCES `clientes` (`idcliente`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Table structure for table `programas_horarios`
+--
+
+DROP TABLE IF EXISTS `programas_horarios`;
+CREATE TABLE `programas_horarios` (
+  `idprograma_horario` int NOT NULL AUTO_INCREMENT,
+  `idprograma` int NOT NULL,
+  `idestudio` int NOT NULL,
+  `dia_semana` tinyint NOT NULL COMMENT '0=Dom,1=Lun,...,6=Sab',
+  `hora_inicio` time NOT NULL,
+  `hora_fin` time NOT NULL,
+  PRIMARY KEY (`idprograma_horario`),
+  KEY `idprograma` (`idprograma`),
+  KEY `idestudio` (`idestudio`),
+  CONSTRAINT `ph_ibfk_1` FOREIGN KEY (`idprograma`) REFERENCES `programas` (`idprograma`) ON DELETE CASCADE,
+  CONSTRAINT `ph_ibfk_2` FOREIGN KEY (`idestudio`) REFERENCES `estudios` (`idestudio`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Dump completed on 2026-07-21

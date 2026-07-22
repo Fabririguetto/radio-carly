@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (sesiones.length === 0) {
     const [horarios] = await pool.query(
       `SELECT h.idhorario, h.hora_inicio, h.hora_fin, h.dia_semana,
-              h.idsala, sa.nombre AS estudio_nombre
+              h.idestudio, sa.nombre AS estudio_nombre
        FROM horarios h
        LEFT JOIN estudios sa ON sa.idestudio = h.idestudio
        WHERE h.idcliente = ?

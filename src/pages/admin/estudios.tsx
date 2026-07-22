@@ -71,21 +71,12 @@ export default function AdminEstudios() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-6 sm:pl-64">
       <div className="max-w-2xl mx-auto space-y-4">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="pl-12">
           <h1 className="text-white font-bold text-xl">Estudios</h1>
-          <button
-            onClick={async () => { await fetch("/api/admin/auth", { method: "DELETE" }); router.push("/"); }}
-            title="Salir"
-            className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
-            </svg>
-          </button>
         </div>
 
         {/* Botón nuevo estudio */}

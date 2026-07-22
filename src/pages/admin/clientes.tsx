@@ -34,6 +34,8 @@ export default function AdminClientes() {
   const [orden, setOrden] = useState<Orden>("asc");
   const [formAbierto, setFormAbierto] = useState(false);
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activo");
+  const [saldoInicial, setSaldoInicial] = useState("");
+  const [motivoSaldo, setMotivoSaldo] = useState("");
 
   useEffect(() => {
     cargarClientes(estadoFiltro);
@@ -58,14 +60,19 @@ export default function AdminClientes() {
     const res = await fetch("/api/admin/clientes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dni: dni.trim(), nombre: nombre.trim() }),
+      body: JSON.stringify({
+        dni: dni.trim(),
+        nombre: nombre.trim(),
+        saldo_inicial: saldoInicial !== "" ? Number(saldoInicial) : 0,
+        motivo_saldo: motivoSaldo.trim() || undefined,
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
       setError(data.error);
     } else {
       setExito(`Cliente "${nombre}" creado.`);
-      setDni(""); setNombre("");
+      setDni(""); setNombre(""); setSaldoInicial(""); setMotivoSaldo("");
       setFormAbierto(false);
       cargarClientes(estadoFiltro);
     }
@@ -90,18 +97,12 @@ export default function AdminClientes() {
   }, [clientes, filtro, columna, orden]);
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-6 sm:pl-64">
       <div className="max-w-2xl mx-auto space-y-4">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="pl-12">
           <h1 className="text-white font-bold text-xl">Clientes</h1>
-          <button onClick={async () => { await fetch("/api/admin/auth", { method: "DELETE" }); router.push("/"); }} title="Salir"
-            className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-gray-800 transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
-            </svg>
-          </button>
         </div>
 
         {/* Botón nuevo cliente */}
@@ -128,9 +129,28 @@ export default function AdminClientes() {
               placeholder="Nombre completo"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && crearCliente()}
               className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <div className="border-t border-gray-800 pt-3 space-y-2">
+              <p className="text-gray-500 text-xs">Saldo inicial (opcional)</p>
+              <input
+                type="number"
+                placeholder="Ej: 5000 (deuda) o -3000 (a favor)"
+                value={saldoInicial}
+                onChange={(e) => setSaldoInicial(e.target.value)}
+                className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {saldoInicial !== "" && Number(saldoInicial) !== 0 && (
+                <input
+                  type="text"
+                  placeholder="Motivo del saldo inicial"
+                  value={motivoSaldo}
+                  onChange={(e) => setMotivoSaldo(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && crearCliente()}
+                  className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
+            </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
             {exito && <p className="text-green-400 text-sm">{exito}</p>}
             <button

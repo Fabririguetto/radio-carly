@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import pool from "@/lib/db";
+import { getPrecioCliente } from "@/lib/precios";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
@@ -38,10 +39,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.json({ ok: true, registrados: 0 });
     }
 
-    const [configRows] = await conn.query("SELECT precio_reserva FROM config LIMIT 1");
-    const { precio_reserva } = (configRows as any[])[0];
+    const hoy = new Date().toISOString().slice(0, 10);
 
     for (const h of lista) {
+      const precios = await getPrecioCliente(h.idcliente, hoy);
+      const precio_reserva = precios.precio_reserva;
+
       await conn.query(
         `INSERT INTO sesiones (idcliente, idhorario, fecha, asistio, monto)
          VALUES (?, ?, CURDATE(), 0, ?)

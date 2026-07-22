@@ -1,170 +1,78 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import AdminNav from "@/components/AdminNav";
+import SearchableSelect from "@/components/SearchableSelect";
 
-const DIAS       = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-const DIAS_CORTO = ["", "Lun",   "Mar",    "Mié",       "Jue",    "Vie",     "Sáb",    "Dom"];
+const DIAS       = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const DIAS_LARGO = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
 const HORA_INICIO = 0;
 const HORA_FIN    = 24;
-const PX_HR       = 56;          // px por hora
+const PX_HR       = 56;
 const TOTAL_HRS   = HORA_FIN - HORA_INICIO;
-const HEADER_H    = 40;          // px del encabezado de días en desktop
-const TIME_W      = 44;          // px del eje de tiempo
+const HEADER_H    = 44;
+const TIME_W      = 44;
+const MIN_SLOT    = 15;
 
 const COLORES = [
-  { slot: "bg-blue-600/85 border-blue-400 text-white",      badge: "bg-blue-600/30 border-blue-500 text-blue-300" },
-  { slot: "bg-purple-600/85 border-purple-400 text-white",  badge: "bg-purple-600/30 border-purple-500 text-purple-300" },
-  { slot: "bg-emerald-600/85 border-emerald-400 text-white",badge: "bg-emerald-600/30 border-emerald-500 text-emerald-300" },
-  { slot: "bg-amber-600/85 border-amber-400 text-white",    badge: "bg-amber-600/30 border-amber-500 text-amber-300" },
-  { slot: "bg-pink-600/85 border-pink-400 text-white",      badge: "bg-pink-600/30 border-pink-500 text-pink-300" },
-  { slot: "bg-orange-600/85 border-orange-400 text-white",  badge: "bg-orange-600/30 border-orange-500 text-orange-300" },
-  { slot: "bg-teal-600/85 border-teal-400 text-white",      badge: "bg-teal-600/30 border-teal-500 text-teal-300" },
+  "bg-blue-600/85 border-blue-400 text-white",
+  "bg-purple-600/85 border-purple-400 text-white",
+  "bg-emerald-600/85 border-emerald-400 text-white",
+  "bg-amber-600/85 border-amber-400 text-white",
+  "bg-pink-600/85 border-pink-400 text-white",
+  "bg-orange-600/85 border-orange-400 text-white",
+  "bg-teal-600/85 border-teal-400 text-white",
 ];
 
-type Horario  = { idhorario:number; dia_semana:number; hora_inicio:string; hora_fin:string; idcliente:number; nombre:string; idestudio:number|null; estudio_nombre:string|null };
-type Cliente  = { idcliente:number; nombre:string; dni:string };
-type Estudio  = { idestudio:number; nombre:string; activo:number };
-type Modal    = { horaInicio:string; horaFin:string } | null;
+type ProgHorario = { idprograma_horario: number; idestudio: number; estudio_nombre: string; dia_semana: number; hora_inicio: string; hora_fin: string };
+type Programa    = { idprograma: number; idcliente: number; cliente_nombre: string; nombre: string; fecha_inicio: string; fecha_fin: string | null; activo: number; horarios: ProgHorario[] };
+type Cliente     = { idcliente: number; nombre: string; dni: string };
+type Estudio     = { idestudio: number; nombre: string };
 
-// ── helpers ─────────────────────────────────────────────────────────────────
-function toMin(t:string){ const[h,m]=t.slice(0,5).split(":").map(Number); return h*60+m; }
-function toTime(m:number){ const c=Math.max(0,Math.min(HORA_FIN*60,m)); return`${String(Math.floor(c/60)).padStart(2,"0")}:${String(c%60).padStart(2,"0")}`; }
-function snapY(y:number){ return Math.round(y/(PX_HR/2))*(PX_HR/2); }
-function yToTime(y:number){ return toTime(Math.round((y/PX_HR)*60/30)*30); }
-function endTime(top:number,h:number){ return toTime(Math.round((top+h)/PX_HR*60/30)*30); }
-
-// ── DayColumn ────────────────────────────────────────────────────────────────
-type DayColProps = {
-  dia:number; slots:Horario[]; colorIdx:Record<number,number>; slotActivo:number|null;
-  isToday:boolean; nowY:number;
-  onSelection:(dia:number,s:string,e:string)=>void;
-  onSlotToggle:(id:number)=>void;
-  onEliminar:(id:number)=>void;
+type DragOverlay = { colIdx: number; startMin: number; endMin: number };
+type DragState = { colIdx: number; startMin: number; fechaDate: Date; columnTop: number };
+type NuevoProg = {
+  visible: boolean;
+  fecha: Date;
+  hora_inicio: string;
+  hora_fin: string;
+  idcliente: string;
+  nombre: string;
+  idestudio: string;
+  fecha_inicio: string;
+  fecha_fin: string;
 };
 
-function DayColumn({dia,slots,colorIdx,slotActivo,isToday,nowY,onSelection,onSlotToggle,onEliminar}:DayColProps){
-  const ref  = useRef<HTMLDivElement>(null);
-  const drag = useRef(false);
-  const dragY= useRef(0);
-  const tY   = useRef(0);
-  const tT   = useRef(0);
-  const [prev,setPrev]=useState<{top:number;height:number}|null>(null);
-
-  function ry(cy:number){ const r=ref.current!.getBoundingClientRect(); return Math.max(0,Math.min(cy-r.top,TOTAL_HRS*PX_HR-1)); }
-
-  // mouse drag
-  function md(e:React.MouseEvent<HTMLDivElement>){
-    if((e.target as HTMLElement).closest("[data-slot]"))return;
-    e.preventDefault(); const y=ry(e.clientY);
-    drag.current=true; dragY.current=y;
-    setPrev({top:snapY(y),height:PX_HR});
-  }
-  function mm(e:React.MouseEvent<HTMLDivElement>){
-    if(!drag.current)return;
-    const y=ry(e.clientY);
-    const top=snapY(Math.min(dragY.current,y));
-    const bot=snapY(Math.max(dragY.current,y));
-    setPrev({top,height:Math.max(bot-top,PX_HR/2)});
-  }
-  function mu(){
-    if(!drag.current||!prev)return; drag.current=false;
-    const s=yToTime(prev.top);
-    const e2=toTime(Math.max(toMin(endTime(prev.top,prev.height)),toMin(s)+30));
-    setPrev(null); onSelection(dia,s,e2);
-  }
-  function ml(){ if(drag.current){drag.current=false;setPrev(null);} }
-
-  // touch tap (sin bloquear scroll)
-  function ts(e:React.TouchEvent){ if((e.target as HTMLElement).closest("[data-slot]"))return; tY.current=e.touches[0].clientY; tT.current=Date.now(); }
-  function te(e:React.TouchEvent){
-    if((e.target as HTMLElement).closest("[data-slot]"))return;
-    if(Math.abs(e.changedTouches[0].clientY-tY.current)<14&&Date.now()-tT.current<400){
-      const y=ry(tY.current); const s=yToTime(y);
-      const en=toTime(Math.min(toMin(s)+60,HORA_FIN*60));
-      onSelection(dia,s,en);
-    }
-  }
-
-  return(
-    <div ref={ref} className="relative select-none" style={{height:TOTAL_HRS*PX_HR,cursor:"crosshair"}}
-      onMouseDown={md} onMouseMove={mm} onMouseUp={mu} onMouseLeave={ml}
-      onTouchStart={ts} onTouchEnd={te}
-    >
-      {/* Fondo alternado */}
-      {Array.from({length:TOTAL_HRS}).map((_,i)=>i%2===1?(
-        <div key={i} className="absolute w-full bg-white/[0.018]" style={{top:i*PX_HR,height:PX_HR}}/>
-      ):null)}
-
-      {/* Líneas */}
-      {Array.from({length:TOTAL_HRS+1}).map((_,i)=>(
-        <div key={i} className="absolute w-full border-t border-gray-800" style={{top:i*PX_HR}}/>
-      ))}
-      {Array.from({length:TOTAL_HRS}).map((_,i)=>(
-        <div key={`m${i}`} className="absolute w-full border-t border-gray-800/20 border-dashed" style={{top:i*PX_HR+PX_HR/2}}/>
-      ))}
-
-      {/* Hora actual */}
-      {isToday&&nowY>=0&&nowY<=TOTAL_HRS*PX_HR&&(
-        <div className="absolute w-full flex items-center pointer-events-none z-30" style={{top:nowY-1}}>
-          <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 -ml-1"/>
-          <div className="flex-1 h-0.5 bg-red-500"/>
-        </div>
-      )}
-
-      {/* Preview drag */}
-      {prev&&(
-        <div className="absolute left-0.5 right-0.5 bg-blue-500/20 border-2 border-blue-400 border-dashed rounded-md pointer-events-none z-10"
-          style={{top:prev.top,height:prev.height}}>
-          <p className="text-[10px] text-blue-300 font-semibold px-1 pt-0.5">{yToTime(prev.top)} – {endTime(prev.top,prev.height)}</p>
-        </div>
-      )}
-
-      {/* Slots */}
-      {slots.map(slot=>{
-        const top=(toMin(slot.hora_inicio)-HORA_INICIO*60)/60*PX_HR;
-        const height=(toMin(slot.hora_fin)-toMin(slot.hora_inicio))/60*PX_HR;
-        const ci=colorIdx[slot.idcliente]??0;
-        const active=slotActivo===slot.idhorario;
-        return(
-          <div key={slot.idhorario} data-slot="1"
-            onClick={e=>{e.stopPropagation();onSlotToggle(slot.idhorario);}}
-            className={`absolute left-0.5 right-0.5 rounded-md border px-1.5 py-0.5 cursor-pointer overflow-hidden transition-all ${COLORES[ci].slot} ${active?"ring-2 ring-white/70":""}`}
-            style={{top:top+1,height:height-2,zIndex:active?20:5}}>
-            {!active?(
-              <>
-                <p className="text-[11px] font-bold truncate leading-tight">{slot.nombre}</p>
-                {height>30&&<p className="text-[10px] opacity-75">{slot.hora_inicio.slice(0,5)}–{slot.hora_fin.slice(0,5)}</p>}
-              </>
-            ):(
-              <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/65 rounded-md">
-                <Link href={`/admin/clientes/${slot.idcliente}`} onClick={e=>e.stopPropagation()}
-                  className="text-[11px] bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded-md font-medium">
-                  Ver cliente
-                </Link>
-                <button onClick={e=>{e.stopPropagation();onEliminar(slot.idhorario);}}
-                  className="text-[11px] bg-red-600/80 hover:bg-red-600 text-white px-2.5 py-1 rounded-md font-medium">
-                  Borrar
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+// ── helpers ──────────────────────────────────────────────────────────────────
+function toMin(t: string) { const [h, m] = t.slice(0, 5).split(":").map(Number); return h * 60 + m; }
+function minToTime(m: number) { return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; }
+function yToMin(y: number) {
+  const raw = HORA_INICIO * 60 + (y / PX_HR) * 60;
+  return Math.max(0, Math.min(HORA_FIN * 60, Math.round(raw / MIN_SLOT) * MIN_SLOT));
 }
 
-// ── TimeAxis ─────────────────────────────────────────────────────────────────
-function TimeAxis({everyN=1}:{everyN?:number}){
-  return(
-    <div className="relative flex-shrink-0 overflow-hidden" style={{width:TIME_W,height:TOTAL_HRS*PX_HR}}>
-      {Array.from({length:TOTAL_HRS}).map((_,i)=>{        // hasta 23:00, sin 24:00
-        if(i%everyN!==0)return null;
-        return(
+function getMonday(d: Date): Date {
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const mon = new Date(d);
+  mon.setDate(diff);
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+}
+function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function isoDate(d: Date) { return d.toISOString().slice(0, 10); }
+
+// ── TimeAxis ──────────────────────────────────────────────────────────────────
+function TimeAxis({ everyN = 1 }: { everyN?: number }) {
+  return (
+    <div className="relative flex-shrink-0 overflow-hidden" style={{ width: TIME_W, height: TOTAL_HRS * PX_HR }}>
+      {Array.from({ length: TOTAL_HRS }).map((_, i) => {
+        if (i % everyN !== 0) return null;
+        return (
           <span key={i} className="absolute right-1.5 text-[10px] text-gray-500 leading-none select-none"
-            style={{top:i*PX_HR}}>                        {/* alineado exacto con la línea del grid */}
-            {String(i).padStart(2,"0")}:00
+            style={{ top: i * PX_HR }}>
+            {String(i).padStart(2, "0")}:00
           </span>
         );
       })}
@@ -172,397 +80,451 @@ function TimeAxis({everyN=1}:{everyN?:number}){
   );
 }
 
+// ── ProgramaColumn ────────────────────────────────────────────────────────────
+type Slot = { idprograma: number; nombre: string; cliente_nombre: string; idcliente: number; estudio_nombre: string; hora_inicio: string; hora_fin: string; ci: number };
+
+function ProgramaColumn({
+  slots, isToday, nowY, colIdx, dragOverlay, onMouseDown,
+}: {
+  slots: Slot[];
+  isToday: boolean;
+  nowY: number;
+  colIdx: number;
+  dragOverlay: DragOverlay | null;
+  onMouseDown: (e: React.MouseEvent, idx: number) => void;
+}) {
+  const showDrag = dragOverlay?.colIdx === colIdx;
+  const dragTop  = showDrag ? Math.min(dragOverlay!.startMin, dragOverlay!.endMin) / 60 * PX_HR : 0;
+  const dragH    = showDrag ? Math.max(MIN_SLOT / 60 * PX_HR, Math.abs(dragOverlay!.endMin - dragOverlay!.startMin) / 60 * PX_HR) : 0;
+
+  return (
+    <div
+      className="relative cursor-crosshair"
+      style={{ height: TOTAL_HRS * PX_HR }}
+      onMouseDown={(e) => { if (!(e.target as HTMLElement).closest("a")) onMouseDown(e, colIdx); }}
+    >
+      {Array.from({ length: TOTAL_HRS }).map((_, i) => i % 2 === 1 ? (
+        <div key={i} className="absolute w-full bg-white/[0.018]" style={{ top: i * PX_HR, height: PX_HR }} />
+      ) : null)}
+      {Array.from({ length: TOTAL_HRS + 1 }).map((_, i) => (
+        <div key={i} className="absolute w-full border-t border-gray-800" style={{ top: i * PX_HR }} />
+      ))}
+      {Array.from({ length: TOTAL_HRS }).map((_, i) => (
+        <div key={`m${i}`} className="absolute w-full border-t border-gray-800/20 border-dashed" style={{ top: i * PX_HR + PX_HR / 2 }} />
+      ))}
+      {isToday && nowY >= 0 && nowY <= TOTAL_HRS * PX_HR && (
+        <div className="absolute w-full flex items-center pointer-events-none z-30" style={{ top: nowY - 1 }}>
+          <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 -ml-1" />
+          <div className="flex-1 h-0.5 bg-red-500" />
+        </div>
+      )}
+      {slots.map((s, idx) => {
+        const top    = (toMin(s.hora_inicio) - HORA_INICIO * 60) / 60 * PX_HR;
+        const height = (toMin(s.hora_fin) - toMin(s.hora_inicio)) / 60 * PX_HR;
+        return (
+          <Link key={`${s.idprograma}-${idx}`} href={`/admin/clientes/${s.idcliente}`}
+            className={`absolute left-0.5 right-0.5 rounded-md border px-1.5 py-0.5 overflow-hidden ${COLORES[s.ci % COLORES.length]}`}
+            style={{ top: top + 1, height: height - 2, zIndex: 5 }}>
+            <p className="text-[11px] font-bold truncate leading-tight">{s.nombre}</p>
+            {height > 26 && <p className="text-[10px] opacity-80 truncate">{s.cliente_nombre}</p>}
+            {height > 44 && <p className="text-[10px] opacity-60">{s.hora_inicio.slice(0, 5)}–{s.hora_fin.slice(0, 5)} · {s.estudio_nombre}</p>}
+          </Link>
+        );
+      })}
+      {/* Drag selection overlay */}
+      {showDrag && (
+        <div
+          className="absolute left-0.5 right-0.5 bg-blue-500/25 border border-blue-400 rounded pointer-events-none"
+          style={{ top: dragTop, height: dragH, zIndex: 25 }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Página ────────────────────────────────────────────────────────────────────
-export default function AdminHorarios(){
-  const router=useRouter();
-  const [horarios,setHorarios]=useState<Horario[]>([]);
-  const [clientes,setClientes]=useState<Cliente[]>([]);
-  const [estudios,setEstudios]=useState<Estudio[]>([]);
-  const [estudioFiltro,setEstudioFiltro]=useState<number|null>(null);
-  const [cargando,setCargando]=useState(true);
-  const [modal,setModal]=useState<Modal>(null);
-  const [clienteId,setClienteId]=useState("");
-  const [estudioId,setEstudioId]=useState("");
-  const [mInicio,setMInicio]=useState("");
-  const [mFin,setMFin]=useState("");
-  const [modalDias,setModalDias]=useState<number[]>([]);
-  const [busquedaCliente,setBusquedaCliente]=useState("");
-  const [dropdownAbierto,setDropdownAbierto]=useState(false);
-  const [modalError,setModalError]=useState("");
-  const [guardando,setGuardando]=useState(false);
-  const [slotActivo,setSlotActivo]=useState<number|null>(null);
-  const [diaActivo,setDiaActivo]=useState(1);
-  const [hoy,setHoy]=useState(1);
-  const [nowY,setNowY]=useState(0);
-  const scrollRef=useRef<HTMLDivElement>(null);
+export default function AdminHorarios() {
+  const router = useRouter();
+  const [programas, setProgramas]       = useState<Programa[]>([]);
+  const [clientes, setClientes]         = useState<Cliente[]>([]);
+  const [estudios, setEstudios]         = useState<Estudio[]>([]);
+  const [cargando, setCargando]         = useState(true);
+  const [semanaStart, setSemanaStart]   = useState<Date>(getMonday(new Date()));
+  const [diaActivoMobile, setDiaActivoMobile] = useState(0);
+  const [nowY, setNowY]                 = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(()=>{
-    const d=new Date().getDay(); const ds=d===0?7:d;
-    setHoy(ds); setDiaActivo(ds);
-    function upd(){ const n=new Date(); setNowY((n.getHours()*60+n.getMinutes())/60*PX_HR); }
-    upd(); const t=setInterval(upd,60_000);
+  // Drag state
+  const dragRef     = useRef<DragState | null>(null);
+  const curEndRef   = useRef<number>(0);
+  const [dragOverlay, setDragOverlay] = useState<DragOverlay | null>(null);
+
+  // New program modal
+  const [nuevoProg, setNuevoProg] = useState<NuevoProg | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const [errorModal, setErrorModal] = useState("");
+
+  useEffect(() => {
+    const d = new Date().getDay();
+    setDiaActivoMobile(d === 0 ? 6 : d - 1);
+    function upd() { const n = new Date(); setNowY((n.getHours() * 60 + n.getMinutes()) / 60 * PX_HR); }
+    upd();
+    const t = setInterval(upd, 60_000);
     cargar();
-    return()=>clearInterval(t);
-  },[]);
+    return () => clearInterval(t);
+  }, []);
 
-  // Scroll al horario actual al cargar (HEADER_H=40 está dentro del scroll en desktop)
-  useEffect(()=>{
-    if(!cargando&&scrollRef.current){
-      const y=Math.max(0,nowY-80);
-      scrollRef.current.scrollTop=y;
+  useEffect(() => {
+    if (!cargando && scrollRef.current) {
+      scrollRef.current.scrollTop = Math.max(0, nowY - 80);
     }
-  },[cargando]);
+  }, [cargando]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function cargar(){
-    const[rh,rc,rs]=await Promise.all([
-      fetch("/api/admin/horarios"),
-      fetch("/api/admin/clientes"),
+  // Global mousemove + mouseup para el drag
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!dragRef.current) return;
+      const { startMin, columnTop } = dragRef.current;
+      const y = e.clientY - columnTop;
+      const endMin = Math.max(startMin + MIN_SLOT, Math.min(HORA_FIN * 60, yToMin(y)));
+      curEndRef.current = endMin;
+      setDragOverlay(prev => prev ? { ...prev, endMin } : null);
+    }
+    function onUp() {
+      if (!dragRef.current) return;
+      const { startMin, fechaDate } = dragRef.current;
+      const endMin = curEndRef.current;
+      dragRef.current = null;
+      setDragOverlay(null);
+      if (endMin - startMin >= MIN_SLOT) {
+        setNuevoProg({
+          visible: true,
+          fecha: fechaDate,
+          hora_inicio: minToTime(startMin),
+          hora_fin: minToTime(endMin),
+          idcliente: "",
+          nombre: "",
+          idestudio: "",
+          fecha_inicio: isoDate(fechaDate),
+          fecha_fin: "",
+        });
+        setErrorModal("");
+      }
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function cargar() {
+    setCargando(true);
+    const [resP, resC, resE] = await Promise.all([
+      fetch("/api/admin/programas"),
+      fetch("/api/admin/clientes?estado=activo"),
       fetch("/api/admin/estudios"),
     ]);
-    if(rh.status===401){router.replace("/admin");return;}
-    setHorarios(await rh.json());
-    setClientes(await rc.json());
-    setEstudios(await rs.json());
+    if (resP.status === 401) { router.replace("/admin"); return; }
+    const pData = await resP.json();
+    setProgramas(Array.isArray(pData) ? pData : []);
+    setClientes(await resC.json());
+    setEstudios(await resE.json());
     setCargando(false);
   }
 
-  const clienteIds=[...new Set(horarios.map(h=>h.idcliente))];
-  const colorIdx:Record<number,number>={};
-  clienteIds.forEach((id,i)=>{colorIdx[id]=i%COLORES.length;});
-  const horariosFiltrados=estudioFiltro!==null?horarios.filter(h=>h.idestudio===estudioFiltro):horarios;
-  const porDia:Record<number,Horario[]>={};
-  for(let d=1;d<=7;d++)porDia[d]=[];
-  horariosFiltrados.forEach(h=>porDia[h.dia_semana]?.push(h));
-
-  function abrirModal(dia?:number,s?:string,e?:string){
-    const preId=router.query.cliente?String(router.query.cliente):"";
-    const preNombre=clientes.find(c=>String(c.idcliente)===preId)?.nombre??"";
-    const eFin=e==="24:00"?"23:59":(e??"");
-    setModal({horaInicio:s??"",horaFin:eFin});
-    setMInicio(s??""); setMFin(eFin);
-    setClienteId(preId);
-    setBusquedaCliente(preNombre);
-    setDropdownAbierto(false);
-    setModalDias(dia!=null?[dia]:[]);
-    setEstudioId(estudioFiltro!==null?String(estudioFiltro):"");
-    setModalError(""); setSlotActivo(null);
-  }
-  function handleSel(dia:number,s:string,e:string){ abrirModal(dia,s,e); }
-
-  function toggleModalDia(d:number){
-    setModalDias(prev=>prev.includes(d)?prev.filter(x=>x!==d):[...prev,d].sort((a,b)=>a-b));
+  // Drag handlers
+  function handleMouseDown(e: React.MouseEvent, colIdx: number) {
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const columnTop = rect.top;
+    const startMin = yToMin(e.clientY - columnTop);
+    const initEnd  = Math.min(HORA_FIN * 60, startMin + MIN_SLOT);
+    dragRef.current   = { colIdx, startMin, fechaDate: semanaFechas[colIdx], columnTop };
+    curEndRef.current = initEnd;
+    setDragOverlay({ colIdx, startMin, endMin: initEnd });
   }
 
-  async function guardar(){
-    if(!clienteId||!modal||modalDias.length===0||!estudioId){setModalError("Elegí cliente, estudio y al menos un día.");return;}
-    setGuardando(true); setModalError("");
-
-    const resultados = await Promise.all(modalDias.map(async dia=>{
-      try{
-        const res=await fetch(`/api/admin/clientes/${clienteId}/horarios`,{
-          method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({dia_semana:dia,hora_inicio:mInicio,hora_fin:mFin,idestudio:Number(estudioId)}),
-        });
-        const data=await res.json();
-        return{dia,ok:res.ok,mensaje:data.error??""};
-      }catch{
-        return{dia,ok:false,mensaje:"Error de red"};
-      }
-    }));
-
-    const fallidos=resultados.filter(r=>!r.ok);
-    const exitosos=resultados.filter(r=>r.ok);
-
-    if(exitosos.length>0) cargar();
-
-    if(fallidos.length>0){
-      setModalError(
-        fallidos.map(r=>`${DIAS[r.dia]}: ${r.mensaje}`).join("\n")
-      );
-      setModalDias(fallidos.map(r=>r.dia));
-    }else{
-      setModal(null);
+  async function crearDesdeCalendario() {
+    if (!nuevoProg) return;
+    if (!nuevoProg.idcliente || !nuevoProg.nombre.trim() || !nuevoProg.idestudio) {
+      setErrorModal("Cliente, nombre y estudio son obligatorios."); return;
     }
-
+    setGuardando(true); setErrorModal("");
+    const diaSemana = nuevoProg.fecha.getDay();
+    const res = await fetch("/api/admin/programas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        idcliente: Number(nuevoProg.idcliente),
+        nombre: nuevoProg.nombre.trim(),
+        fecha_inicio: nuevoProg.fecha_inicio,
+        fecha_fin: nuevoProg.fecha_fin || null,
+        horarios: [{
+          idestudio: Number(nuevoProg.idestudio),
+          dia_semana: diaSemana,
+          hora_inicio: nuevoProg.hora_inicio,
+          hora_fin: nuevoProg.hora_fin,
+        }],
+      }),
+    });
+    if (res.ok) {
+      setNuevoProg(null);
+      cargar();
+    } else {
+      const d = await res.json();
+      setErrorModal(d.error || "Error al crear el programa.");
+    }
     setGuardando(false);
   }
-  async function eliminar(id:number){
-    await fetch(`/api/admin/horarios/${id}`,{method:"DELETE"});
-    setSlotActivo(null); cargar();
-  }
-  function cp(dia:number):DayColProps{
-    return{dia,slots:porDia[dia]??[],colorIdx,slotActivo,isToday:dia===hoy,nowY,
-      onSelection:handleSel,
-      onSlotToggle:id=>setSlotActivo(p=>p===id?null:id),
-      onEliminar:eliminar};
+
+  const semanaFechas = Array.from({ length: 7 }, (_, i) => addDays(semanaStart, i));
+  const todayStr     = new Date().toISOString().slice(0, 10);
+
+  const colorIdxProg: Record<number, number> = {};
+  programas.forEach((p, i) => { colorIdxProg[p.idprograma] = i % COLORES.length; });
+
+  function slotsParaDia(fechaDate: Date): Slot[] {
+    const dateStr  = isoDate(fechaDate);
+    const diaSemana = fechaDate.getDay();
+    const result: Slot[] = [];
+    programas.forEach(p => {
+      if (!p.activo) return;
+      if (p.fecha_inicio > dateStr) return;
+      if (p.fecha_fin && p.fecha_fin < dateStr) return;
+      p.horarios.filter(h => h.dia_semana === diaSemana).forEach(h => {
+        result.push({
+          idprograma: p.idprograma,
+          nombre: p.nombre,
+          cliente_nombre: p.cliente_nombre,
+          idcliente: p.idcliente,
+          estudio_nombre: h.estudio_nombre,
+          hora_inicio: h.hora_inicio,
+          hora_fin: h.hora_fin,
+          ci: colorIdxProg[p.idprograma] ?? 0,
+        });
+      });
+    });
+    result.sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
+    return result;
   }
 
-  return(
-    <div className="h-[100dvh] bg-gray-950 flex flex-col overflow-hidden pb-14">
+  function fmtSemana() {
+    const opt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
+    return `${semanaFechas[0].toLocaleDateString("es-AR", opt)} – ${semanaFechas[6].toLocaleDateString("es-AR", { ...opt, year: "numeric" })}`;
+  }
 
-      {/* Header fijo */}
+  return (
+    <div className="h-[100dvh] bg-gray-950 flex flex-col overflow-hidden sm:pl-64">
+
+      {/* Header */}
       <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between border-b border-gray-800 bg-gray-950 z-40">
-        <h1 className="text-white font-bold text-lg">Calendario</h1>
-        <div className="flex items-center gap-1">
-          <button onClick={()=>abrirModal()}
-            className="text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-3 py-1.5 rounded-lg font-semibold text-sm mr-1">
-            + Agregar
-          </button>
-          <button onClick={async()=>{await fetch("/api/admin/auth",{method:"DELETE"});router.push("/");}} title="Salir"
-            className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-gray-800 transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
-            </svg>
-          </button>
-        </div>
+        <h1 className="text-white font-bold text-lg pl-10 sm:pl-0">Calendario</h1>
+        <span />
       </div>
 
+      {/* Nav semana */}
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-800 gap-2">
+        <button onClick={() => setSemanaStart(d => addDays(d, -7))}
+          className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center shrink-0">‹</button>
+        <div className="flex-1 flex flex-col items-center min-w-0">
+          <p className="text-white text-sm font-medium truncate">{fmtSemana()}</p>
+          {semanaFechas.some(f => isoDate(f) === todayStr) && <p className="text-blue-400 text-xs">Esta semana</p>}
+        </div>
+        <input
+          type="date"
+          onChange={(e) => { if (e.target.value) setSemanaStart(getMonday(new Date(e.target.value + "T12:00:00"))); }}
+          title="Ir a fecha"
+          className="shrink-0 bg-gray-800 text-white border border-gray-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+        />
+        {!semanaFechas.some(f => isoDate(f) === todayStr) && (
+          <button onClick={() => setSemanaStart(getMonday(new Date()))}
+            className="shrink-0 text-xs text-blue-400 hover:text-blue-300 px-2 py-1.5 rounded-lg hover:bg-gray-800 transition-colors">
+            Hoy
+          </button>
+        )}
+        <button onClick={() => setSemanaStart(d => addDays(d, 7))}
+          className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">›</button>
+      </div>
 
-      {cargando?(
+      {cargando ? (
         <div className="flex-1 flex items-center justify-center">
           <p className="text-gray-500 text-sm">Cargando...</p>
         </div>
-      ):(
-        /* Contenedor principal — flex-1 + min-h-0 para que los hijos puedan acotar su altura */
-        <div className="flex-1 min-h-0 flex flex-col">
-
-          {/* Chips de estudio */}
-          {estudios.length>0&&(
-            <div className="flex-shrink-0 flex gap-2 px-3 py-2 border-b border-gray-800 overflow-x-auto">
-              <button
-                onClick={()=>setEstudioFiltro(null)}
-                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                  estudioFiltro===null
-                    ?"bg-white/10 border-white/30 text-white"
-                    :"border-gray-700 text-gray-400 hover:text-white"
-                }`}
-              >
-                Todas
-              </button>
-              {estudios.filter(s=>s.activo).map(s=>(
-                <button
-                  key={s.idestudio}
-                  onClick={()=>setEstudioFiltro(s.idestudio)}
-                  className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    estudioFiltro===s.idestudio
-                      ?"bg-blue-600 border-blue-500 text-white"
-                      :"border-gray-700 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  {s.nombre}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Leyenda */}
-
-          {/* ── MOBILE ── */}
+      ) : (
+        <>
+          {/* ── Mobile: un día a la vez ── */}
           <div className="flex flex-col sm:hidden flex-1 min-h-0">
-            {/* Navegador de día */}
             <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-gray-800">
-              <button onClick={()=>setDiaActivo(d=>d===1?7:d-1)} className="text-gray-400 text-3xl w-12 h-10 flex items-center justify-center">‹</button>
-              <span className={`font-semibold text-base ${diaActivo===hoy?"text-blue-400":"text-white"}`}>
-                {DIAS[diaActivo]}
-                {diaActivo===hoy&&<span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">Hoy</span>}
-              </span>
-              <button onClick={()=>setDiaActivo(d=>d===7?1:d+1)} className="text-gray-400 text-3xl w-12 h-10 flex items-center justify-center">›</button>
+              <button onClick={() => setDiaActivoMobile(d => (d + 6) % 7)}
+                className="text-gray-400 text-3xl w-12 h-10 flex items-center justify-center">‹</button>
+              <div className="text-center">
+                <span className={`font-semibold text-base ${isoDate(semanaFechas[diaActivoMobile]) === todayStr ? "text-blue-400" : "text-white"}`}>
+                  {DIAS_LARGO[semanaFechas[diaActivoMobile].getDay()]}
+                </span>
+                <p className="text-gray-500 text-xs">
+                  {semanaFechas[diaActivoMobile].toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                </p>
+              </div>
+              <button onClick={() => setDiaActivoMobile(d => (d + 1) % 7)}
+                className="text-gray-400 text-3xl w-12 h-10 flex items-center justify-center">›</button>
             </div>
-            {/* Scroll libre */}
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
               <div className="flex">
-                <TimeAxis everyN={2}/>
+                <TimeAxis everyN={2} />
                 <div className="flex-1 border-l border-gray-800 min-w-0">
-                  <DayColumn {...cp(diaActivo)}/>
+                  <ProgramaColumn
+                    slots={slotsParaDia(semanaFechas[diaActivoMobile])}
+                    isToday={isoDate(semanaFechas[diaActivoMobile]) === todayStr}
+                    nowY={nowY}
+                    colIdx={diaActivoMobile}
+                    dragOverlay={dragOverlay}
+                    onMouseDown={handleMouseDown}
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-{/* ── DESKTOP ── */}
+          {/* ── Desktop: semana completa ── */}
           <div className="hidden sm:flex flex-col flex-1 min-h-0">
-            {/* Un único contenedor de scroll — header sticky adentro, así ambos comparten el mismo ancho y el scrollbar no desalinea */}
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
-              <div className="flex flex-col" style={{minWidth:560}}>
-
-                {/* Encabezado sticky — se pega al tope del viewport de scroll */}
+              <div className="flex flex-col" style={{ minWidth: 560 }}>
+                {/* Encabezado sticky */}
                 <div className="sticky top-0 z-40 flex flex-shrink-0 border-b border-gray-800 bg-gray-950"
-                  style={{paddingLeft:TIME_W}}>
-                  {DIAS.slice(1).map((_,i)=>{
-                    const n=i+1; const esHoy=n===hoy;
-                    return(
-                      <div key={n}
-                        className={`flex-1 flex flex-col items-center justify-center border-l border-gray-800 text-xs font-semibold ${esHoy?"text-blue-400 bg-blue-950/20":"text-gray-400"}`}
-                        style={{height:HEADER_H}}>
-                        <span className="hidden lg:inline">{DIAS[n]}</span>
-                        <span className="lg:hidden">{DIAS_CORTO[n]}</span>
-                        {esHoy&&<span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-0.5"/>}
+                  style={{ paddingLeft: TIME_W }}>
+                  {semanaFechas.map((fecha, i) => {
+                    const esHoy = isoDate(fecha) === todayStr;
+                    return (
+                      <div key={i}
+                        className={`flex-1 flex flex-col items-center justify-center border-l border-gray-800 text-xs font-semibold ${esHoy ? "text-blue-400 bg-blue-950/20" : "text-gray-400"}`}
+                        style={{ height: HEADER_H }}>
+                        <span className="hidden lg:inline">{DIAS_LARGO[fecha.getDay()]}</span>
+                        <span className="lg:hidden">{DIAS[fecha.getDay()]}</span>
+                        <span className={`text-[10px] mt-0.5 ${esHoy ? "text-blue-300" : "text-gray-600"}`}>
+                          {fecha.toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                        </span>
                       </div>
                     );
                   })}
                 </div>
-
-                {/* Grilla: eje de tiempo + columnas */}
+                {/* Grilla */}
                 <div className="flex">
-                  <TimeAxis/>
+                  <TimeAxis />
                   <div className="flex flex-1">
-                    {DIAS.slice(1).map((_,i)=>{
-                      const n=i+1; const esHoy=n===hoy;
-                      return(
-                        <div key={n} className={`flex-1 border-l border-gray-800 min-w-0 ${esHoy?"bg-blue-950/10":""}`}>
-                          <DayColumn {...cp(n)}/>
+                    {semanaFechas.map((fecha, i) => {
+                      const esHoy = isoDate(fecha) === todayStr;
+                      return (
+                        <div key={i} className={`flex-1 border-l border-gray-800 min-w-0 ${esHoy ? "bg-blue-950/10" : ""}`}>
+                          <ProgramaColumn
+                            slots={slotsParaDia(fecha)}
+                            isToday={esHoy}
+                            nowY={nowY}
+                            colIdx={i}
+                            dragOverlay={dragOverlay}
+                            onMouseDown={handleMouseDown}
+                          />
                         </div>
                       );
                     })}
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
 
-          
-          {/* Hint */}
           <div className="flex-shrink-0 px-4 py-1.5 border-t border-gray-800 text-center">
-            <p className="text-gray-700 text-xs">
-              <span className="hidden sm:inline">Arrastrá para crear · </span>
-              <span className="sm:hidden">Tocá para crear · </span>
-              Tocá un turno para ver opciones
-            </p>
+            <p className="text-gray-700 text-xs">Arrastrá un rango para crear · Tocá un bloque para ver el cliente</p>
           </div>
-
-        </div>
+        </>
       )}
 
-      {/* Modal */}
-      {modal&&(
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0"
-          onClick={()=>{setModal(null);setDropdownAbierto(false);}}>
-          <div className="bg-gray-900 rounded-2xl p-5 w-full max-w-sm space-y-4" onClick={e=>e.stopPropagation()}>
-            <h2 className="text-white font-bold text-lg">Nuevo horario</h2>
+      {/* Modal: nuevo programa desde calendario */}
+      {nuevoProg?.visible && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 px-4 pb-4 sm:pb-0">
+          <div className="bg-gray-900 rounded-2xl p-5 w-full max-w-sm space-y-4">
+            <div>
+              <h2 className="text-white font-bold text-lg">Nuevo programa</h2>
+              <p className="text-gray-400 text-sm mt-0.5">
+                {DIAS_LARGO[nuevoProg.fecha.getDay()]} · {nuevoProg.hora_inicio}–{nuevoProg.hora_fin}
+              </p>
+            </div>
 
-            {/* Cliente */}
-            <div className="space-y-2">
-              <label className="text-gray-400 text-xs uppercase tracking-wide">Cliente</label>
-              <div className="relative">
+            <div className="space-y-3">
+              <div>
+                <label className="text-gray-400 text-sm block mb-1">Cliente</label>
+                <SearchableSelect
+                  options={clientes.map((c) => ({ value: String(c.idcliente), label: c.nombre, sublabel: c.dni }))}
+                  value={nuevoProg.idcliente}
+                  onChange={(v) => setNuevoProg((p) => p ? { ...p, idcliente: v } : p)}
+                  placeholder="Buscar cliente..."
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-sm block mb-1">Nombre del programa</label>
                 <input
                   type="text"
-                  value={busquedaCliente}
-                  onChange={e=>{setBusquedaCliente(e.target.value);setClienteId("");setDropdownAbierto(true);}}
-                  onFocus={()=>setDropdownAbierto(true)}
-                  onBlur={()=>setTimeout(()=>setDropdownAbierto(false),150)}
-                  placeholder="Escribí nombre o DNI..."
-                  className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="Ej: La Mañana de Radio X"
+                  value={nuevoProg.nombre}
+                  onChange={(e) => setNuevoProg((p) => p ? { ...p, nombre: e.target.value } : p)}
+                  autoFocus
+                  className="w-full bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                {dropdownAbierto&&(
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden z-10 max-h-44 overflow-y-auto">
-                    {clientes
-                      .filter(c=>!busquedaCliente||c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase())||c.dni.includes(busquedaCliente))
-                      .map(c=>{
-                        const ci=colorIdx[c.idcliente]??0;
-                        const activo=clienteId===String(c.idcliente);
-                        return(
-                          <button key={c.idcliente}
-                            onPointerDown={e=>{e.preventDefault();setClienteId(String(c.idcliente));setBusquedaCliente(c.nombre);setDropdownAbierto(false);}}
-                            className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors ${activo?"bg-gray-700":"hover:bg-gray-700/60"}`}
-                          >
-                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${COLORES[ci].slot.split(" ")[0].replace("/85","")}`}/>
-                            <span className="text-white">{c.nombre}</span>
-                            <span className="text-gray-500 text-xs ml-auto">{c.dni}</span>
-                          </button>
-                        );
-                      })
-                    }
-                  </div>
-                )}
               </div>
-            </div>
 
-            {/* Estudio */}
-            <div className="space-y-2">
-              <label className="text-gray-400 text-xs uppercase tracking-wide">Estudio</label>
-              {estudios.filter(s=>s.activo).length===0?(
-                <p className="text-gray-500 text-sm">
-                  No hay estudios activos.{" "}
-                  <Link href="/admin/estudios" className="text-blue-400 underline">Crear estudio</Link>
-                </p>
-              ):(
-                <div className="flex flex-wrap gap-2">
-                  {estudios.filter(s=>s.activo).map(s=>(
-                    <button key={s.idestudio} onClick={()=>setEstudioId(String(s.idestudio))}
-                      className={`text-sm font-medium px-4 py-2 rounded-xl border transition-colors ${
-                        estudioId===String(s.idestudio)
-                          ?"bg-blue-600 border-blue-500 text-white"
-                          :"border-gray-700 text-gray-400 hover:text-white hover:border-gray-600"
-                      }`}
-                    >
-                      {s.nombre}
-                    </button>
-                  ))}
+              <div>
+                <label className="text-gray-400 text-sm block mb-1">Estudio</label>
+                <SearchableSelect
+                  options={estudios.map((e) => ({ value: String(e.idestudio), label: e.nombre }))}
+                  value={nuevoProg.idestudio}
+                  onChange={(v) => setNuevoProg((p) => p ? { ...p, idestudio: v } : p)}
+                  placeholder="Buscar estudio..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Horario inicio</label>
+                  <input type="time" value={nuevoProg.hora_inicio}
+                    onChange={(e) => setNuevoProg((p) => p ? { ...p, hora_inicio: e.target.value } : p)}
+                    className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-              )}
-            </div>
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Horario fin</label>
+                  <input type="time" value={nuevoProg.hora_fin}
+                    onChange={(e) => setNuevoProg((p) => p ? { ...p, hora_fin: e.target.value } : p)}
+                    className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
 
-            {/* Días */}
-            <div className="space-y-2">
-              <label className="text-gray-400 text-xs uppercase tracking-wide">Días</label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={()=>setModalDias(modalDias.length===7?[]:[1,2,3,4,5,6,7])}
-                  className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                    modalDias.length===7
-                      ? "bg-white/10 border-white/30 text-white"
-                      : "border-gray-700 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  Todos
-                </button>
-                {DIAS_CORTO.slice(1).map((nombre,i)=>{
-                  const d=i+1; const activo=modalDias.includes(d);
-                  return(
-                    <button key={d} onClick={()=>toggleModalDia(d)}
-                      className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                        activo
-                          ? "bg-white/10 border-white/30 text-white"
-                          : "border-gray-700 text-gray-400 hover:text-white"
-                      }`}
-                    >
-                      {nombre}
-                    </button>
-                  );
-                })}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Fecha inicio</label>
+                  <input type="date" value={nuevoProg.fecha_inicio}
+                    onChange={(e) => setNuevoProg((p) => p ? { ...p, fecha_inicio: e.target.value } : p)}
+                    className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Fecha fin (opt.)</label>
+                  <input type="date" value={nuevoProg.fecha_fin}
+                    onChange={(e) => setNuevoProg((p) => p ? { ...p, fecha_fin: e.target.value } : p)}
+                    className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
               </div>
             </div>
 
-            {/* Horario */}
+            {errorModal && <p className="text-red-400 text-sm">{errorModal}</p>}
+
             <div className="flex gap-3">
-              <div className="flex-1 space-y-1.5">
-                <label className="text-gray-400 text-xs uppercase tracking-wide">Desde</label>
-                <input type="time" value={mInicio} onChange={e=>setMInicio(e.target.value)}
-                  className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-              </div>
-              <div className="flex-1 space-y-1.5">
-                <label className="text-gray-400 text-xs uppercase tracking-wide">Hasta</label>
-                <input type="time" value={mFin} onChange={e=>setMFin(e.target.value)}
-                  className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-              </div>
-            </div>
-
-            {modalError&&(
-              <div className="bg-red-900/20 border border-red-700/50 rounded-xl px-3 py-2.5 space-y-0.5">
-                {modalError.split("\n").map((l,i)=>(
-                  <p key={i} className="text-red-400 text-sm">{l}</p>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-3">
-              <button onClick={()=>{setModal(null);setDropdownAbierto(false);}}
-                className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3.5 rounded-xl">
+              <button onClick={() => setNuevoProg(null)}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-3 rounded-xl transition-colors">
                 Cancelar
               </button>
-              <button onClick={guardar} disabled={guardando}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl">
-                {guardando?"Guardando...":"Agregar"}
+              <button onClick={crearDesdeCalendario} disabled={guardando}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors">
+                {guardando ? "Creando..." : "Crear programa"}
               </button>
             </div>
           </div>

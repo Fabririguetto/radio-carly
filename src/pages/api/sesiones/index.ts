@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import pool from '@/lib/db';
+import { getPrecioCliente } from '@/lib/precios';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -10,10 +11,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const [configRows] = await pool.query(
-    'SELECT precio_hora, precio_reserva, deuda_maxima FROM config LIMIT 1',
+    'SELECT deuda_maxima FROM config LIMIT 1',
   );
   const config = (configRows as any[])[0];
-  const monto = asistio ? config.precio_hora : config.precio_reserva;
+
+  const hoy = new Date().toISOString().slice(0, 10);
+  const precios = await getPrecioCliente(Number(idcliente), hoy);
+  const monto = asistio ? precios.precio_hora : precios.precio_reserva;
 
   // Verificar límite de deuda antes de registrar la sesión
   const deudaMaxima = Number(config?.deuda_maxima ?? 0);

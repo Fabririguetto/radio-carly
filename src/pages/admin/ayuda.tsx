@@ -246,10 +246,10 @@ export default function Ayuda() {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-6 sm:pl-64">
       <div className="max-w-lg mx-auto space-y-4">
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pl-12">
           <Link href="/admin/horarios" className="text-gray-400 text-sm py-2 pr-1">←</Link>
           <h1 className="text-white font-bold text-xl">Ayuda</h1>
         </div>

@@ -17,7 +17,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const pago = (rows as any[])[0];
   if (!pago) return res.status(404).json({ error: "Pago no encontrado" });
 
-  if (pago.estado === "aprobado") return res.json({ estado: "aprobado" });
+  if (pago.estado === "aprobado") {
+    const [cfgRows] = await pool.query("SELECT nombre_negocio FROM config LIMIT 1");
+    const negocio = (cfgRows as any[])[0]?.nombre_negocio ?? "WOX Rosario";
+    return res.json({
+      estado: "aprobado",
+      ticket: { idpago: pago.idpago, monto: Number(pago.monto), negocio },
+    });
+  }
 
   // Consultar MP directamente
   try {
@@ -52,7 +59,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } finally {
         conn.release();
       }
-      return res.json({ estado: "aprobado" });
+      const [cfgRows] = await pool.query("SELECT nombre_negocio FROM config LIMIT 1");
+      const negocio = (cfgRows as any[])[0]?.nombre_negocio ?? "WOX Rosario";
+      return res.json({
+        estado: "aprobado",
+        ticket: { idpago: pago.idpago, monto: Number(pago.monto), negocio },
+      });
     }
   } catch (e) {
     console.error("estado MP check error:", e);

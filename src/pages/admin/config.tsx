@@ -33,6 +33,13 @@ export default function AdminConfig() {
   const [exitoPrecios, setExitoPrecios] = useState("");
   const [errorPrecios, setErrorPrecios] = useState("");
 
+  // Actualización masiva de precios
+  const [porcentajeMasivo, setPorcentajeMasivo] = useState("");
+  const [fechaMasiva, setFechaMasiva] = useState(new Date().toISOString().slice(0, 10));
+  const [aplicandoMasivo, setAplicandoMasivo] = useState(false);
+  const [exitoMasivo, setExitoMasivo] = useState("");
+  const [errorMasivo, setErrorMasivo] = useState("");
+
   // Mercado Pago
   const [mpEstado, setMpEstado] = useState<MpEstado | null>(null);
   const [mpNegocio, setMpNegocio] = useState("");
@@ -242,10 +249,10 @@ export default function AdminConfig() {
     : null;
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-20">
+    <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-6 sm:pl-64">
       <div className="max-w-sm mx-auto space-y-6">
 
-        <h1 className="text-white font-bold text-xl">Configuración</h1>
+        <h1 className="text-white font-bold text-xl pl-12">Configuración</h1>
 
         {/* Precios */}
         <div className="bg-gray-900 rounded-2xl p-5 space-y-4">
@@ -291,6 +298,56 @@ export default function AdminConfig() {
             className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors text-lg"
           >
             Guardar precios
+          </button>
+        </div>
+
+        {/* Actualización masiva de precios */}
+        <div className="bg-gray-900 rounded-2xl p-5 space-y-4">
+          <div>
+            <h2 className="text-white font-semibold text-base">Aumento masivo de precios</h2>
+            <p className="text-gray-500 text-xs mt-1">Aplica el aumento a todos los clientes activos. Si un cliente no tiene precio individual, se le crea uno a partir del precio global.</p>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-gray-400 text-sm block mb-1">Porcentaje de aumento (%)</label>
+              <input
+                type="number" inputMode="numeric" min="1" max="1000"
+                placeholder="Ej: 15"
+                value={porcentajeMasivo}
+                onChange={(e) => setPorcentajeMasivo(e.target.value)}
+                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-gray-400 text-sm block mb-1">Vigente desde</label>
+              <input
+                type="date"
+                value={fechaMasiva}
+                onChange={(e) => setFechaMasiva(e.target.value)}
+                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          {errorMasivo && <p className="text-red-400 text-sm">{errorMasivo}</p>}
+          {exitoMasivo && <p className="text-green-400 text-sm">{exitoMasivo}</p>}
+          <button
+            disabled={aplicandoMasivo || !porcentajeMasivo}
+            onClick={async () => {
+              if (!confirm(`¿Aplicar aumento del ${porcentajeMasivo}% a todos los clientes activos desde ${fechaMasiva}?`)) return;
+              setAplicandoMasivo(true); setErrorMasivo(""); setExitoMasivo("");
+              const res = await fetch("/api/admin/precios/actualizacion-masiva", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ porcentaje: Number(porcentajeMasivo), fecha_desde: fechaMasiva }),
+              });
+              const d = await res.json();
+              if (!res.ok) setErrorMasivo(d.error || "Error al aplicar.");
+              else setExitoMasivo(`Aumento aplicado a ${d.actualizados} clientes.`);
+              setAplicandoMasivo(false);
+            }}
+            className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl transition-colors"
+          >
+            {aplicandoMasivo ? "Aplicando..." : "Aplicar aumento masivo"}
           </button>
         </div>
 

@@ -26,7 +26,15 @@ type Horario = {
   estudio_nombre?: string | null;
 };
 
-type Paso = "dni" | "pago" | "qr";
+type Paso = "dni" | "notif" | "pago" | "qr";
+
+type NotifActiva = {
+  idnotificacion: number;
+  titulo: string;
+  texto: string;
+  tipo: "general" | "aumento_cuota";
+  precio_nuevo: number | null;
+};
 
 const TTL = 60;
 
@@ -40,6 +48,7 @@ export default function Home() {
   const [qrPos, setQrPos] = useState("");
   const [orderId, setOrderId] = useState("");
   const [pagoCobrado, setPagoCobrado] = useState(false);
+  const [ticketData, setTicketData] = useState<{ idpago: number; monto: number; negocio: string } | null>(null);
 
   const [tiempoSesion, setTiempoSesion] = useState(TTL);
   const [sesionExpirada, setSesionExpirada] = useState(false);
@@ -50,11 +59,22 @@ export default function Home() {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [notifActiva, setNotifActiva] = useState<NotifActiva | null>(null);
+
+  const [negocio, setNegocio] = useState("Estudio");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
   const dniInputRef = useRef<HTMLInputElement>(null);
+  const pendingContinuationRef = useRef<(() => Promise<void>) | null>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
+
+  // Nombre del negocio desde config
+  useEffect(() => {
+    fetch("/api/config-publica").then(r => r.json()).then(d => {
+      if (d.nombre_negocio) setNegocio(d.nombre_negocio);
+    }).catch(() => {});
+  }, []);
 
   // Auto-focus inputs al cambiar de paso
   useEffect(() => {
@@ -98,13 +118,15 @@ export default function Home() {
       try {
         const res = await fetch(`/api/pagos/estado?orderId=${orderId}`);
         if (!res.ok) return;
-        const { estado } = await res.json();
-        if (estado === "aprobado") {
+        const data = await res.json();
+        if (data.estado === "aprobado") {
           clearInterval(pollingRef.current!);
           pollingRef.current = null;
           clearInterval(qrCountdownRef.current!);
           qrCountdownRef.current = null;
+          if (data.ticket) setTicketData(data.ticket);
           setPagoCobrado(true);
+          setTimeout(() => window.print(), 200);
           setTimeout(() => reiniciar(), 3000);
         }
       } catch { /* silent */ }
@@ -161,26 +183,69 @@ export default function Home() {
       const data: Cliente = await res.json();
       setCliente(data);
 
-      const resSesion = await fetch(`/api/sesiones/hoy?idcliente=${data.idcliente}`);
-      const dataSesion = await resSesion.json();
+      // Verificar notificaciones pendientes antes de continuar
+      try {
+        const notifRes = await fetch(`/api/notificaciones/pendiente?idcliente=${data.idcliente}`);
+        const notifData = await notifRes.json();
+        if (notifData.notif) {
+          setNotifActiva(notifData.notif);
+          pendingContinuationRef.current = () => continuarFlujo(data);
+          setCargando(false);
+          setPaso("notif");
+          return;
+        }
+      } catch { /* si falla la notif, continúa el flujo normal */ }
 
-      if (dataSesion.sesion) {
-        // Ya tiene sesión registrada hoy
-        setSesion(dataSesion.sesion);
-        setMontoPagar(String(data.balance + dataSesion.sesion.monto));
-        setPaso("pago");
-      } else if (dataSesion.horario_activo) {
-        // Dentro de la ventana del horario → registrar asistencia automáticamente
-        await registrarSesion(data, dataSesion.horario_activo);
-      } else {
-        // Sin horario activo ahora → ir directo a pago de deuda existente
-        setMontoPagar(String(data.balance));
-        setPaso("pago");
-      }
+      await continuarFlujo(data);
     } catch {
       setError("Error de conexión. Intentá de nuevo.");
     }
     setCargando(false);
+  }
+
+  async function continuarFlujo(data: Cliente) {
+    const resSesion = await fetch(`/api/sesiones/hoy?idcliente=${data.idcliente}`);
+    const dataSesion = await resSesion.json();
+
+    if (dataSesion.sesion) {
+      setSesion(dataSesion.sesion);
+      const monto = data.balance + dataSesion.sesion.monto;
+      setMontoPagar(String(monto));
+      if (monto > 0) {
+        await generarQRPara(data.idcliente, monto);
+      } else {
+        setPaso("pago");
+      }
+    } else if (dataSesion.horario_activo) {
+      await registrarSesion(data, dataSesion.horario_activo);
+    } else {
+      const monto = data.balance;
+      setMontoPagar(String(monto));
+      if (monto > 0) {
+        await generarQRPara(data.idcliente, monto);
+      } else {
+        setPaso("pago");
+      }
+    }
+  }
+
+  async function aceptarNotif() {
+    if (!notifActiva || !cliente) return;
+    try {
+      await fetch("/api/notificaciones/pendiente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idnotificacion: notifActiva.idnotificacion, idcliente: cliente.idcliente }),
+      });
+    } catch { /* si falla el mark, igual continuamos */ }
+    setNotifActiva(null);
+    if (pendingContinuationRef.current) {
+      setCargando(true);
+      const fn = pendingContinuationRef.current;
+      pendingContinuationRef.current = null;
+      await fn();
+      setCargando(false);
+    }
   }
 
   async function registrarSesion(cl: Cliente, hor: Horario) {
@@ -193,10 +258,15 @@ export default function Home() {
 
       if (res.status === 403) {
         const data = await res.json();
-        // Límite de deuda alcanzado: no registra sesión, pero permite pagar el saldo existente
         setError(data.mensaje ?? "Deuda excedida. Pagá el saldo pendiente.");
-        setMontoPagar(String(cl.balance));
-        setPaso("pago");
+        const monto = Number(cl.balance);
+        setMontoPagar(String(monto));
+        if (monto > 0) {
+          setCliente(cl);
+          await generarQRPara(cl.idcliente, monto);
+        } else {
+          setPaso("pago");
+        }
         return;
       }
 
@@ -205,14 +275,18 @@ export default function Home() {
       setCliente({ ...cl, balance: nuevoBalance });
       setSesion({ ...data, idhorario: hor.idhorario, asistio: 1, estudio_nombre: hor.estudio_nombre });
       setMontoPagar(String(nuevoBalance));
-      setPaso("pago");
+      if (nuevoBalance > 0) {
+        await generarQRPara(cl.idcliente, nuevoBalance);
+      } else {
+        setPaso("pago");
+      }
     } catch {
       setError("Error al registrar la sesión.");
     }
   }
 
-  async function generarQR() {
-    if (!cliente || !montoPagar || Number(montoPagar) <= 0) { setError("Ingresá un monto válido."); return; }
+  async function generarQRPara(idcliente: number, monto: number) {
+    if (monto <= 0) return;
     setCargando(true);
     setError("");
     if (sesionCountdownRef.current) { clearInterval(sesionCountdownRef.current); sesionCountdownRef.current = null; }
@@ -224,7 +298,7 @@ export default function Home() {
       const res = await fetch("/api/pagos/crear", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idcliente: cliente.idcliente, monto: Number(montoPagar) }),
+        body: JSON.stringify({ idcliente, monto }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -243,11 +317,19 @@ export default function Home() {
     setCargando(false);
   }
 
+  async function generarQR() {
+    if (!cliente || !montoPagar || Number(montoPagar) <= 0) { setError("Ingresá un monto válido."); return; }
+    await generarQRPara(cliente.idcliente, Number(montoPagar));
+  }
+
   function reiniciar() {
+    setNotifActiva(null);
+    pendingContinuationRef.current = null;
     setDni("");
     setCliente(null);
     setSesion(null);
     setMontoPagar("");
+    setTicketData(null);
     setQrPos("");
     setOrderId("");
     setPagoCobrado(false);
@@ -302,7 +384,7 @@ export default function Home() {
     <div className="min-h-[100dvh] bg-gray-950 flex flex-col">
 
       <header className="px-5 pt-10 pb-4 sm:pt-14 text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">WOX Rosario</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{negocio}</h1>
       </header>
 
       <main className="flex-1 flex flex-col justify-start sm:justify-center px-4 pb-8 sm:pb-0 w-full max-w-md mx-auto">
@@ -333,9 +415,73 @@ export default function Home() {
             </div>
           )}
 
-          {/* PASO 2: Monto */}
+          {/* PASO NOTIF: Notificación pendiente */}
+          {paso === "notif" && cliente && notifActiva && (
+            <div className="space-y-5">
+              <div className="text-center">
+                <div className="flex justify-center mb-3">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center ${notifActiva.tipo === "aumento_cuota" ? "bg-orange-500/20" : "bg-blue-500/20"}`}>
+                    {notifActiva.tipo === "aumento_cuota" ? (
+                      <svg className="w-7 h-7 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    ) : (
+                      <svg className="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <p className="text-white font-bold text-xl">{notifActiva.titulo}</p>
+              </div>
+
+              <div className="bg-gray-800 rounded-xl p-4 space-y-3">
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  Estimado/a <span className="text-white font-semibold">{cliente.nombre}</span>, {notifActiva.texto}
+                </p>
+                {notifActiva.tipo === "aumento_cuota" && notifActiva.precio_nuevo && (
+                  <div className="border-t border-gray-700 pt-3">
+                    <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Nuevo precio por hora</p>
+                    <p className="text-orange-400 font-bold text-2xl">
+                      ${Number(notifActiva.precio_nuevo).toLocaleString("es-AR")}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={aceptarNotif}
+                disabled={cargando}
+                className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors text-lg"
+              >
+                {cargando ? "Cargando..." : "Aceptar y continuar"}
+              </button>
+              <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-2 transition-colors">
+                ← Volver
+              </button>
+            </div>
+          )}
+
+          {/* PASO 2: Sin deuda / o monto manual */}
           {paso === "pago" && cliente && (
-            sesionExpirada ? <ExpiryScreen /> : (
+            sesionExpirada ? <ExpiryScreen /> :
+            Number(montoPagar) <= 0 ? (
+              <div className="py-8 space-y-4 text-center">
+                <div className="flex justify-center">
+                  <div className="w-20 h-20 rounded-full bg-green-600/20 flex items-center justify-center">
+                    <svg className="w-10 h-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white font-bold text-2xl">{cliente.nombre}</p>
+                  <p className="text-green-400 font-semibold mt-1">¡Estás al día!</p>
+                  <p className="text-gray-500 text-sm mt-1">No tenés deuda pendiente.</p>
+                </div>
+                <button onClick={reiniciar} className="text-gray-500 text-sm py-3">← Volver</button>
+              </div>
+            ) : (
               <div className="space-y-4">
                 <div className="bg-gray-800 rounded-xl p-4">
                   <div className="flex justify-between items-start">
@@ -463,6 +609,30 @@ export default function Home() {
 
         </div>
       </main>
+
+      {/* Ticket de impresión — solo visible al imprimir */}
+      {ticketData && cliente && (
+        <div className="hidden print:block fixed inset-0 bg-white z-[200] p-4">
+          <div style={{ maxWidth: "80mm", margin: "0 auto", fontFamily: "monospace", fontSize: "12px", color: "#000" }}>
+            <div style={{ textAlign: "center", fontWeight: "bold", fontSize: "16px", marginBottom: "8px" }}>
+              {ticketData.negocio}
+            </div>
+            <div style={{ borderTop: "1px solid #000", margin: "8px 0" }} />
+            <div style={{ marginBottom: "4px" }}>Cliente: {cliente.nombre}</div>
+            <div style={{ marginBottom: "4px" }}>DNI: {cliente.dni}</div>
+            <div style={{ borderTop: "1px solid #000", margin: "8px 0" }} />
+            <div style={{ textAlign: "center", fontWeight: "bold", fontSize: "20px", margin: "8px 0" }}>
+              ${Number(ticketData.monto).toLocaleString("es-AR")}
+            </div>
+            <div style={{ textAlign: "center", marginBottom: "4px" }}>
+              {new Date().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </div>
+            <div style={{ textAlign: "center", color: "#666" }}>Comprobante #{ticketData.idpago}</div>
+            <div style={{ borderTop: "1px solid #000", margin: "8px 0" }} />
+            <div style={{ textAlign: "center" }}>¡Gracias!</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
