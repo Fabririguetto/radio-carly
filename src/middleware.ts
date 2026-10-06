@@ -5,6 +5,7 @@ const ADMIN_COOKIE = 'admin_session';
 // Endpoints bajo /api/admin/ que NO requieren sesión admin
 const PUBLIC_ADMIN_PATHS = new Set([
   '/api/admin/auth',
+  '/api/admin/migrar',
   '/api/admin/mp-connect-webhook',
   '/api/admin/mp-oauth-callback',
 ]);

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node scripts/apply-migration.js && next start",
+    "start": "next start",
     "migrate": "node scripts/apply-migration.js",
     "lint": "eslint",
     "arca:install": "npm --prefix afip-service install",
