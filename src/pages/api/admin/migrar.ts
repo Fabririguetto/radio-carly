@@ -160,7 +160,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       logs.push("Columnas en config ya existen.");
     }
 
-    // 8. Columna tipo y comprobante en pagos
+    // 8. Columna tipo, motivo y comprobante en pagos
     const [tipoCols] = await conn.query("SHOW COLUMNS FROM pagos LIKE 'tipo'");
     if ((tipoCols as any[]).length === 0) {
       await conn.query(`
@@ -176,12 +176,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       logs.push("Columna tipo actualizada en pagos.");
     }
 
+    const [motivoCols] = await conn.query("SHOW COLUMNS FROM pagos LIKE 'motivo'");
+    if ((motivoCols as any[]).length === 0) {
+      await conn.query("ALTER TABLE pagos ADD COLUMN motivo VARCHAR(200) DEFAULT NULL");
+      logs.push("Columna motivo agregada a pagos.");
+    }
+
     const [pagoCols] = await conn.query("SHOW COLUMNS FROM pagos LIKE 'comprobante_transferencia'");
     if ((pagoCols as any[]).length === 0) {
-      await conn.query(`
-        ALTER TABLE pagos
-          ADD COLUMN comprobante_transferencia VARCHAR(255) DEFAULT NULL AFTER motivo
-      `);
+      await conn.query("ALTER TABLE pagos ADD COLUMN comprobante_transferencia VARCHAR(255) DEFAULT NULL");
       logs.push("Columna comprobante_transferencia agregada a pagos.");
     }
 

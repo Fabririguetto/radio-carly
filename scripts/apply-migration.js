@@ -175,12 +175,15 @@ async function run() {
       console.log('[DB] Columna tipo en pagos actualizada');
     }
 
+    const [motivoCols] = await conn.query("SHOW COLUMNS FROM pagos LIKE 'motivo'");
+    if (motivoCols.length === 0) {
+      await conn.query("ALTER TABLE pagos ADD COLUMN motivo VARCHAR(200) DEFAULT NULL");
+      console.log('[DB] Columna motivo agregada a pagos');
+    }
+
     const [pagoCols] = await conn.query("SHOW COLUMNS FROM pagos LIKE 'comprobante_transferencia'");
     if (pagoCols.length === 0) {
-      await conn.query(`
-        ALTER TABLE pagos
-          ADD COLUMN comprobante_transferencia VARCHAR(255) DEFAULT NULL AFTER motivo
-      `);
+      await conn.query("ALTER TABLE pagos ADD COLUMN comprobante_transferencia VARCHAR(255) DEFAULT NULL");
       console.log('[DB] Columna comprobante_transferencia agregada a pagos');
     } else {
       console.log('[DB] Columna comprobante_transferencia ya existe');
