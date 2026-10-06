@@ -241,11 +241,12 @@ export default function AdminHorarios() {
       fetch("/api/admin/clientes?estado=activo"),
       fetch("/api/admin/estudios"),
     ]);
-    if (resP.status === 401) { router.replace("/admin"); return; }
-    const pData = await resP.json();
+    const pData = await resP.json().catch(() => []);
+    const cData = await resC.json().catch(() => []);
+    const eData = await resE.json().catch(() => []);
     setProgramas(Array.isArray(pData) ? pData : []);
-    setClientes(await resC.json());
-    setEstudios(await resE.json());
+    setClientes(Array.isArray(cData) ? cData : []);
+    setEstudios(Array.isArray(eData) ? eData : []);
     setCargando(false);
   }
 

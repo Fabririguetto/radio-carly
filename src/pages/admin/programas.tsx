@@ -69,10 +69,13 @@ export default function AdminProgramas() {
       fetch("/api/admin/clientes?estado=activo"),
       fetch("/api/admin/estudios"),
     ]);
-    if (resP.status === 401) { router.replace("/admin"); return; }
-    setProgramas(await resP.json());
-    setClientes(await resC.json());
-    setEstudios(await resE.json());
+    const pData = await resP.json().catch(() => []);
+    const cData = await resC.json().catch(() => []);
+    const eData = await resE.json().catch(() => []);
+    setProgramas(Array.isArray(pData) ? pData : []);
+    setClientes(Array.isArray(cData) ? cData : []);
+    setEstudios(Array.isArray(eData) ? eData : []);
+    if (!resP.ok && pData?.error) setError(pData.error);
     setCargando(false);
   }
 
