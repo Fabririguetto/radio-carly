@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "arca:install": "npm --prefix afip-service install",
+    "arca:start": "node afip-service/index.js"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",

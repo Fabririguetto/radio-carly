@@ -60,6 +60,19 @@ export default function AdminConfig() {
   const [storeError, setStoreError] = useState("");
   const [storeExito, setStoreExito] = useState("");
 
+  // Límite MP y Transferencias
+  const [mpLimiteMensual, setMpLimiteMensual] = useState("");
+  const [mpConsumidoMes, setMpConsumidoMes] = useState(0);
+  const [mpBloqueado, setMpBloqueado] = useState(false);
+  const [mpRestante, setMpRestante] = useState(0);
+  const [transferenciaCbu, setTransferenciaCbu] = useState("");
+  const [transferenciaAlias, setTransferenciaAlias] = useState("");
+  const [transferenciaTitular, setTransferenciaTitular] = useState("");
+  const [transferenciaBanco, setTransferenciaBanco] = useState("");
+  const [guardandoLimite, setGuardandoLimite] = useState(false);
+  const [exitoLimite, setExitoLimite] = useState("");
+  const [errorLimite, setErrorLimite] = useState("");
+
   useEffect(() => {
     fetch("/api/admin/config").then((r) => {
       if (r.status === 401) { router.replace("/admin"); return r; }
@@ -69,6 +82,14 @@ export default function AdminConfig() {
       setPrecioHora(String(d.precio_hora));
       setPrecioReserva(String(d.precio_reserva));
       setDeudaMaxima(String(d.deuda_maxima ?? 0));
+      setMpLimiteMensual(d.mp_limite_mensual ? String(d.mp_limite_mensual) : "");
+      setMpConsumidoMes(d.mp_consumido_mes || 0);
+      setMpBloqueado(Boolean(d.mp_bloqueado));
+      setMpRestante(d.mp_restante || 0);
+      setTransferenciaCbu(d.transferencia_cbu || "");
+      setTransferenciaAlias(d.transferencia_alias || "");
+      setTransferenciaTitular(d.transferencia_titular || "");
+      setTransferenciaBanco(d.transferencia_banco || "");
     });
 
     cargarEstadoMp();
@@ -111,6 +132,41 @@ export default function AdminConfig() {
     });
     if (res.ok) setExitoPrecios("Configuración actualizada correctamente.");
     else setErrorPrecios("Error al guardar.");
+  }
+
+  async function guardarLimiteYTransferencia() {
+    setErrorLimite("");
+    setExitoLimite("");
+    setGuardandoLimite(true);
+    try {
+      const res = await fetch("/api/admin/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mp_limite_mensual: mpLimiteMensual !== "" ? Number(mpLimiteMensual) : null,
+          transferencia_cbu: transferenciaCbu,
+          transferencia_alias: transferenciaAlias,
+          transferencia_titular: transferenciaTitular,
+          transferencia_banco: transferenciaBanco,
+        }),
+      });
+      if (res.ok) {
+        setExitoLimite("Límite y datos bancarios actualizados correctamente.");
+        // Refrescar estado y métricas
+        const r = await fetch("/api/admin/config");
+        const d = await r.json();
+        setMpConsumidoMes(d.mp_consumido_mes || 0);
+        setMpBloqueado(Boolean(d.mp_bloqueado));
+        setMpRestante(d.mp_restante || 0);
+      } else {
+        const d = await res.json();
+        setErrorLimite(d.error || "Error al guardar.");
+      }
+    } catch {
+      setErrorLimite("Error de conexión al guardar.");
+    } finally {
+      setGuardandoLimite(false);
+    }
   }
 
   async function desvincularMp() {
@@ -255,7 +311,7 @@ export default function AdminConfig() {
 
   return (
     <div className="min-h-[100dvh] bg-gray-950 px-4 py-6 pb-6 sm:pl-64">
-      <div className="max-w-sm mx-auto space-y-6">
+      <div className="max-w-lg mx-auto space-y-6">
 
         <h1 className="text-white font-bold text-xl pl-12">Configuración</h1>
 
@@ -483,6 +539,135 @@ export default function AdminConfig() {
           <p className="text-gray-500 text-xs text-center">
             Serás redirigido a Mercado Pago para autorizar la conexión
           </p>
+        </div>
+
+        {/* Límite de Facturación MP & Transferencias */}
+        <div className="bg-gray-900 rounded-2xl p-5 space-y-4">
+          <div>
+            <h2 className="text-white font-semibold text-base">Límite de Facturación MP & Transferencias</h2>
+            <p className="text-gray-500 text-xs mt-1">
+              Fija un monto máximo mensual para cobros con Mercado Pago. Al alcanzarse, los clientes no podrán abonar con MP y serán derivados exclusivamente a transferencia bancaria.
+            </p>
+          </div>
+
+          {/* Estado actual / Barra de consumo */}
+          {Number(mpLimiteMensual) > 0 ? (
+            <div className="bg-gray-800/80 rounded-xl p-4 space-y-2 border border-gray-700">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-gray-400">Consumo mensual de MP</span>
+                <span className={`px-2 py-0.5 rounded-full font-semibold text-[10px] ${
+                  mpBloqueado ? "bg-red-950 text-red-300 border border-red-800" : "bg-green-950 text-green-300 border border-green-800"
+                }`}>
+                  {mpBloqueado ? "LÍMITE ALCANZADO (MP BLOQUEADO)" : "DISPONIBLE"}
+                </span>
+              </div>
+              
+              <div className="w-full bg-gray-700 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    mpBloqueado
+                      ? "bg-red-500"
+                      : (mpConsumidoMes / Number(mpLimiteMensual)) > 0.8
+                        ? "bg-yellow-400"
+                        : "bg-green-500"
+                  }`}
+                  style={{ width: `${Math.min(100, Math.round((mpConsumidoMes / Number(mpLimiteMensual)) * 100))}%` }}
+                />
+              </div>
+
+              <div className="flex justify-between text-xs pt-1">
+                <span className="text-white font-mono font-medium">
+                  ${mpConsumidoMes.toLocaleString("es-AR")} facturados
+                </span>
+                <span className="text-gray-400 font-mono">
+                  Tope: ${Number(mpLimiteMensual).toLocaleString("es-AR")} ({Math.round((mpConsumidoMes / Number(mpLimiteMensual)) * 100)}%)
+                </span>
+              </div>
+              {!mpBloqueado && mpRestante > 0 && (
+                <p className="text-gray-500 text-[11px]">
+                  Resta disponible este mes: <span className="text-green-400 font-medium">${mpRestante.toLocaleString("es-AR")}</span>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="bg-gray-800/40 rounded-xl p-3 border border-gray-800">
+              <p className="text-gray-400 text-xs">
+                Actualmente no hay límite mensual configurado (cobros ilimitados por Mercado Pago).
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-gray-400 text-sm">Límite mensual Mercado Pago ($) — 0 o vacío = sin límite</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              placeholder="Ej: 500000"
+              value={mpLimiteMensual}
+              onChange={(e) => setMpLimiteMensual(e.target.value)}
+              className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="pt-2 border-t border-gray-800 space-y-3">
+            <p className="text-white font-medium text-xs uppercase tracking-wider">Datos bancarios para Transferencias</p>
+            
+            <div className="space-y-1.5">
+              <label className="text-gray-400 text-sm">Banco / Billetera</label>
+              <input
+                type="text"
+                value={transferenciaBanco}
+                onChange={(e) => setTransferenciaBanco(e.target.value)}
+                placeholder="Ej: Banco Santander / Mercado Pago"
+                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-gray-400 text-sm">Titular de la cuenta</label>
+              <input
+                type="text"
+                value={transferenciaTitular}
+                onChange={(e) => setTransferenciaTitular(e.target.value)}
+                placeholder="Ej: Juan Pérez"
+                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-gray-400 text-sm">CBU / CVU</label>
+              <input
+                type="text"
+                value={transferenciaCbu}
+                onChange={(e) => setTransferenciaCbu(e.target.value)}
+                placeholder="Ej: 0720000000000000000000"
+                className="w-full bg-gray-800 text-white font-mono border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-gray-400 text-sm">Alias</label>
+              <input
+                type="text"
+                value={transferenciaAlias}
+                onChange={(e) => setTransferenciaAlias(e.target.value)}
+                placeholder="Ej: mi.radio.estudio"
+                className="w-full bg-gray-800 text-white font-mono border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {errorLimite && <p className="text-red-400 text-sm">{errorLimite}</p>}
+          {exitoLimite && <p className="text-green-400 text-sm">{exitoLimite}</p>}
+
+          <button
+            onClick={guardarLimiteYTransferencia}
+            disabled={guardandoLimite}
+            className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl transition-colors text-base"
+          >
+            {guardandoLimite ? "Guardando..." : "Guardar límite y datos bancarios"}
+          </button>
         </div>
 
         {/* Sucursal */}

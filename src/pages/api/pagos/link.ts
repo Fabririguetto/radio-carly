@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { randomUUID } from "crypto";
 import pool from "@/lib/db";
 import { getMpConfig } from "@/lib/mp";
+import { getMpLimitStatus } from "@/lib/mp-limit";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
@@ -12,6 +13,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (Number(monto) < 15) {
     return res.status(400).json({ error: "El monto mínimo para pagar con Mercado Pago es $15." });
+  }
+
+  const limitStatus = await getMpLimitStatus();
+  if (limitStatus.alcanzado) {
+    return res.status(403).json({
+      error: "Se ha alcanzado el límite mensual de facturación con Mercado Pago. Solo está disponible el pago por transferencia bancaria.",
+    });
   }
 
   const [rows] = await pool.query("SELECT nombre FROM clientes WHERE idcliente = ?", [idcliente]);

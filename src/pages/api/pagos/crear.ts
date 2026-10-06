@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { randomUUID } from "crypto";
 import pool from "@/lib/db";
 import { getMpConfig } from "@/lib/mp";
+import { getMpLimitStatus } from "@/lib/mp-limit";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
@@ -18,6 +19,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (montoNum < 15) {
     return res.status(400).json({ error: "El monto mínimo para pagar con QR es $15." });
+  }
+
+  const limitStatus = await getMpLimitStatus();
+  if (limitStatus.alcanzado) {
+    return res.status(403).json({
+      error: "Se ha alcanzado el límite mensual de facturación con Mercado Pago. Solo está disponible el pago por transferencia bancaria.",
+    });
   }
 
   const [rows] = await pool.query(

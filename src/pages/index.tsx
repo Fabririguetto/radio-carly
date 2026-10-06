@@ -72,14 +72,27 @@ export default function Home() {
   const [cargando, setCargando] = useState(false);
   const [mpResult, setMpResult] = useState<"ok" | "error" | "pendiente" | null>(null);
 
+  // Límite MP y datos para Transferencia
+  const [mpBloqueado, setMpBloqueado] = useState(false);
+  const [transferencia, setTransferencia] = useState({ cbu: "", alias: "", titular: "", banco: "" });
+  const [comprobanteTransferencia, setComprobanteTransferencia] = useState("");
+  const [transferenciaInformada, setTransferenciaInformada] = useState(false);
+  const [copiadoCbu, setCopiadoCbu] = useState(false);
+  const [copiadoAlias, setCopiadoAlias] = useState(false);
+
   const pendingContinuationRef = useRef<(() => Promise<void>) | null>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
 
-  // Nombre del negocio desde config
+  // Cargar configuración pública (nombre, estado de bloqueo de MP y datos de transferencia)
   useEffect(() => {
-    fetch("/api/config-publica").then(r => r.json()).then(d => {
-      if (d.nombre_negocio) setNegocio(d.nombre_negocio);
-    }).catch(() => {});
+    fetch("/api/config-publica")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.nombre_negocio) setNegocio(d.nombre_negocio);
+        if (typeof d.mp_bloqueado === "boolean") setMpBloqueado(d.mp_bloqueado);
+        if (d.transferencia) setTransferencia(d.transferencia);
+      })
+      .catch(() => {});
   }, []);
 
   // Enter en paso notif
@@ -474,6 +487,42 @@ export default function Home() {
     }
   }
 
+  async function informarTransferencia() {
+    const monto = montoPagar ? Number(montoPagar) : totalDebido;
+    if (!cliente || monto <= 0) {
+      setError("Ingresá un monto válido.");
+      return;
+    }
+    setCargando(true);
+    setError("");
+    try {
+      const res = await fetch("/api/pagos/transferencia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idcliente: cliente.idcliente,
+          monto,
+          comprobante: comprobanteTransferencia,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error al informar la transferencia.");
+        setCargando(false);
+        return;
+      }
+      setTransferenciaInformada(true);
+      if (sesionCountdownRef.current) clearInterval(sesionCountdownRef.current);
+      setTimeout(() => {
+        reiniciar();
+      }, 5000);
+    } catch {
+      setError("Error de conexión. Intentá de nuevo.");
+    } finally {
+      setCargando(false);
+    }
+  }
+
   function reiniciar() {
     setNotifActiva(null);
     pendingContinuationRef.current = null;
@@ -489,6 +538,10 @@ export default function Home() {
     setTiempoQR(TTL);
     setSesionExpirada(false);
     setTiempoSesion(TTL);
+    setComprobanteTransferencia("");
+    setTransferenciaInformada(false);
+    setCopiadoCbu(false);
+    setCopiadoAlias(false);
     if (sesionCountdownRef.current) { clearInterval(sesionCountdownRef.current); sesionCountdownRef.current = null; }
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     if (qrCountdownRef.current) { clearInterval(qrCountdownRef.current); qrCountdownRef.current = null; }
@@ -743,30 +796,145 @@ export default function Home() {
 
                 {error && <p className="text-red-400 text-sm">{error}</p>}
 
-                {/* Solo visible en mobile (< 640px) */}
-                <button
-                  onClick={pagarConMP}
-                  disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
-                  className="sm:hidden w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg flex items-center justify-center gap-2"
-                >
-                  {cargando ? "Redirigiendo..." : (
-                    <>
-                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M11.65 3C7.41 3 4 6.41 4 10.65c0 3.07 1.78 5.74 4.37 7.05L11.65 21l3.28-3.3C17.52 16.39 19.3 13.72 19.3 10.65 19.3 6.41 15.89 3 11.65 3zm0 2c2.57 0 4.65 2.08 4.65 4.65S14.22 14.3 11.65 14.3 7 12.22 7 9.65 9.08 5 11.65 5z"/>
-                      </svg>
-                      Pagar con Mercado Pago
-                    </>
-                  )}
-                </button>
+                {transferenciaInformada ? (
+                  <div className="py-6 space-y-3 text-center bg-gray-800/60 rounded-xl p-4 border border-green-500/30">
+                    <div className="flex justify-center">
+                      <div className="w-16 h-16 rounded-full bg-green-600/20 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-xl">¡Transferencia Informada!</p>
+                      <p className="text-gray-300 text-xs mt-1">
+                        El pago quedó registrado como <span className="text-yellow-400 font-semibold">pendiente</span>.
+                        Será verificado y acreditado por administración.
+                      </p>
+                    </div>
+                    <p className="text-gray-500 text-xs">Volviendo al inicio...</p>
+                  </div>
+                ) : mpBloqueado ? (
+                  <div className="space-y-4">
+                    {/* Alerta de MP bloqueado */}
+                    <div className="bg-amber-950/40 border border-amber-600/40 rounded-xl p-3 text-left">
+                      <p className="text-amber-400 text-sm font-semibold flex items-center gap-1.5">
+                        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        Mercado Pago no disponible
+                      </p>
+                      <p className="text-amber-200/80 text-xs mt-0.5">
+                        Se alcanzó el límite mensual de facturación con Mercado Pago. Podés abonar mediante <strong>transferencia bancaria</strong>.
+                      </p>
+                    </div>
 
-                <button
-                  onClick={generarQR}
-                  disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
-                  className="w-full disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg bg-gray-700 sm:bg-blue-600 hover:bg-gray-600 sm:hover:bg-blue-500 active:bg-gray-800 sm:active:bg-blue-700"
-                >
-                  <span className="block">{cargando ? "Generando QR..." : "Generar QR de pago"}</span>
-                  {!cargando && <span className="hidden sm:block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
-                </button>
+                    {/* Datos bancarios */}
+                    <div className="bg-gray-800/90 border border-gray-700 rounded-xl p-4 text-left space-y-2.5">
+                      <p className="text-gray-300 text-xs uppercase font-bold tracking-wider">Datos para Transferencia</p>
+                      
+                      {transferencia.banco && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-400 text-xs">Banco:</span>
+                          <span className="text-white font-medium text-xs sm:text-sm">{transferencia.banco}</span>
+                        </div>
+                      )}
+                      {transferencia.titular && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-400 text-xs">Titular:</span>
+                          <span className="text-white font-medium text-xs sm:text-sm">{transferencia.titular}</span>
+                        </div>
+                      )}
+                      {transferencia.cbu && (
+                        <div className="flex justify-between items-center text-sm gap-2 pt-1 border-t border-gray-700/60">
+                          <div className="truncate">
+                            <span className="text-gray-400 block text-[11px]">CBU / CVU:</span>
+                            <span className="text-white font-mono text-xs sm:text-sm select-all">{transferencia.cbu}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(transferencia.cbu);
+                              setCopiadoCbu(true);
+                              setTimeout(() => setCopiadoCbu(false), 2000);
+                            }}
+                            className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-blue-300 transition-colors"
+                          >
+                            {copiadoCbu ? "¡Copiado!" : "Copiar CBU"}
+                          </button>
+                        </div>
+                      )}
+                      {transferencia.alias && (
+                        <div className="flex justify-between items-center text-sm gap-2 pt-1 border-t border-gray-700/60">
+                          <div className="truncate">
+                            <span className="text-gray-400 block text-[11px]">Alias:</span>
+                            <span className="text-white font-mono text-xs sm:text-sm select-all">{transferencia.alias}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(transferencia.alias);
+                              setCopiadoAlias(true);
+                              setTimeout(() => setCopiadoAlias(false), 2000);
+                            }}
+                            className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-blue-300 transition-colors"
+                          >
+                            {copiadoAlias ? "¡Copiado!" : "Copiar Alias"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Referencia opcional */}
+                    <div className="text-left space-y-1">
+                      <label className="text-gray-400 text-xs">N° de comprobante / Referencia (opcional)</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: 987654321"
+                        value={comprobanteTransferencia}
+                        onChange={(e) => setComprobanteTransferencia(e.target.value)}
+                        className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      />
+                    </div>
+
+                    {/* Botón Informar */}
+                    <button
+                      onClick={informarTransferencia}
+                      disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
+                      className="w-full bg-purple-600 hover:bg-purple-500 active:bg-purple-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg flex items-center justify-center gap-2"
+                    >
+                      {cargando ? "Registrando..." : "Informar Transferencia"}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Solo visible en mobile (< 640px) */}
+                    <button
+                      onClick={pagarConMP}
+                      disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
+                      className="sm:hidden w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg flex items-center justify-center gap-2"
+                    >
+                      {cargando ? "Redirigiendo..." : (
+                        <>
+                          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.65 3C7.41 3 4 6.41 4 10.65c0 3.07 1.78 5.74 4.37 7.05L11.65 21l3.28-3.3C17.52 16.39 19.3 13.72 19.3 10.65 19.3 6.41 15.89 3 11.65 3zm0 2c2.57 0 4.65 2.08 4.65 4.65S14.22 14.3 11.65 14.3 7 12.22 7 9.65 9.08 5 11.65 5z"/>
+                          </svg>
+                          Pagar con Mercado Pago
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={generarQR}
+                      disabled={cargando || !montoPagar || Number(montoPagar) <= 0}
+                      className="w-full disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-colors text-lg bg-gray-700 sm:bg-blue-600 hover:bg-gray-600 sm:hover:bg-blue-500 active:bg-gray-800 sm:active:bg-blue-700"
+                    >
+                      <span className="block">{cargando ? "Generando QR..." : "Generar QR de pago"}</span>
+                      {!cargando && <span className="hidden sm:block text-blue-300 text-xs font-normal mt-0.5">Enter</span>}
+                    </button>
+                  </>
+                )}
+
                 <button onClick={reiniciar} className="w-full text-gray-500 text-sm py-3 transition-colors">
                   ← Volver
                 </button>
