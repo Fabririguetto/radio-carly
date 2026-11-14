@@ -7,6 +7,19 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    depends_on:
+      - afip-radiocarly
+    networks:
+      - web_network
+
+  afip-radiocarly:
+    build: ./afip-service
+    container_name: afip-radiocarly
+    restart: unless-stopped
+    environment:
+      - PORT=3001
+    volumes:
+      - ./afip-service/certificados:/app/certificados
     networks:
       - web_network
 
