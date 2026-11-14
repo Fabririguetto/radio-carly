@@ -170,7 +170,14 @@ async function run() {
       console.log('[DB] Columnas operador_dni y operador_password agregadas a config');
     }
 
-    // 7c. Columnas en clientes: mp_enabled, tipo_cobro, monto_mensual
+    // 7c. Columna activo en clientes
+    const [cliActCols] = await conn.query("SHOW COLUMNS FROM clientes LIKE 'activo'");
+    if (cliActCols.length === 0) {
+      await conn.query("ALTER TABLE clientes ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1 AFTER nombre");
+      console.log('[DB] Columna activo agregada a clientes');
+    }
+
+    // 7d. Columnas en clientes: mp_enabled, tipo_cobro, monto_mensual
     const [cliMpCols] = await conn.query("SHOW COLUMNS FROM clientes LIKE 'mp_enabled'");
     if (cliMpCols.length === 0) {
       await conn.query(`
