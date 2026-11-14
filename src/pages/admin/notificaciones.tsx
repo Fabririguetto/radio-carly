@@ -40,12 +40,24 @@ export default function AdminNotificaciones() {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.role === "OPERADOR") {
+          router.replace("/admin/horarios");
+        }
+      })
+      .catch(() => {});
+
+    cargar();
+  }, [router]);
 
   async function cargar() {
     setCargando(true);
     const res = await fetch("/api/admin/notificaciones");
     if (res.status === 401) { router.replace("/admin"); return; }
+    if (res.status === 403) { router.replace("/admin/horarios"); return; }
     setNotifs(await res.json());
     setCargando(false);
   }

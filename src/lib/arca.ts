@@ -19,11 +19,23 @@ export interface EmitirResultado {
   error?: string;
 }
 
+export function getArcaServiceUrl(rowUrl?: string | null): string {
+  const envUrl = process.env.ARCA_SERVICE_URL || process.env.AFIP_SERVICE_URL || process.env.MICROSERVICIO_URL;
+  if (envUrl && envUrl.trim() !== "") {
+    return envUrl.trim();
+  }
+  if (rowUrl && rowUrl.trim() !== "") {
+    return rowUrl.trim();
+  }
+  return "http://localhost:3001";
+}
+
 export async function getArcaConfig(): Promise<AfipConfig> {
   const [rows] = await pool.query(
     "SELECT id_config, cuit, punto_venta, tipo_comprobante, produccion, service_url FROM afip_config LIMIT 1"
   );
   const row = (rows as any[])[0];
+  const serviceUrl = getArcaServiceUrl(row?.service_url);
 
   if (!row) {
     return {
@@ -32,7 +44,7 @@ export async function getArcaConfig(): Promise<AfipConfig> {
       puntoVenta: 1,
       tipoComprobante: 11, // 11 = Factura C
       produccion: false,
-      serviceUrl: process.env.ARCA_SERVICE_URL || "http://localhost:3001",
+      serviceUrl,
     };
   }
 
@@ -42,7 +54,7 @@ export async function getArcaConfig(): Promise<AfipConfig> {
     puntoVenta: Number(row.punto_venta) || 1,
     tipoComprobante: Number(row.tipo_comprobante) || 11,
     produccion: Boolean(row.produccion),
-    serviceUrl: row.service_url || process.env.ARCA_SERVICE_URL || "http://localhost:3001",
+    serviceUrl,
   };
 }
 

@@ -5,7 +5,8 @@ import { verifyAdminToken, ADMIN_COOKIE } from "@/lib/adminAuth";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Permitir por cookie admin o por query param key/secret
   const token = req.cookies[ADMIN_COOKIE];
-  const isAuth = verifyAdminToken(token);
+  const auth = verifyAdminToken(token);
+  const isAuth = auth.valid;
   const key = req.query.key as string;
   const validKey =
     Boolean(key && (key === process.env.ADMIN_PASSWORD || key === process.env.CRON_SECRET || key === "admin1234"));
@@ -158,6 +159,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       logs.push("Columnas mp_limite_mensual y transferencias agregadas a config.");
     } else {
       logs.push("Columnas en config ya existen.");
+    }
+
+    // 7b. Columnas operador en config
+    const [opCols] = await conn.query("SHOW COLUMNS FROM config LIKE 'operador_dni'");
+    if ((opCols as any[]).length === 0) {
+      await conn.query(`
+        ALTER TABLE config
+          ADD COLUMN operador_dni VARCHAR(20) DEFAULT NULL,
+          ADD COLUMN operador_password VARCHAR(255) DEFAULT NULL
+      `);
+      logs.push("Columnas operador_dni y operador_password agregadas a config.");
+    }
+
+    // 7c. Columnas en clientes: mp_enabled, tipo_cobro, monto_mensual
+    const [cliMpCols] = await conn.query("SHOW COLUMNS FROM clientes LIKE 'mp_enabled'");
+    if ((cliMpCols as any[]).length === 0) {
+      await conn.query(`
+        ALTER TABLE clientes
+          ADD COLUMN mp_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER activo,
+          ADD COLUMN tipo_cobro ENUM('POR_PROGRAMA', 'MES_ADELANTADO') NOT NULL DEFAULT 'POR_PROGRAMA' AFTER mp_enabled,
+          ADD COLUMN monto_mensual DECIMAL(10,2) DEFAULT NULL AFTER tipo_cobro,
+          ADD KEY idx_clientes_tipo_cobro (tipo_cobro),
+          ADD KEY idx_clientes_mp_enabled (mp_enabled)
+      `);
+      logs.push("Columnas mp_enabled, tipo_cobro y monto_mensual agregadas a clientes.");
     }
 
     // 8. Columna tipo, motivo y comprobante en pagos

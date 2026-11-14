@@ -60,7 +60,18 @@ export default function AdminProgramas() {
   // Nuevo horario en el form
   const [nuevoHor, setNuevoHor] = useState({ idestudio: "", dia_semana: "1", hora_inicio: "", hora_fin: "" });
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.role === "OPERADOR") {
+          router.replace("/admin/horarios");
+        }
+      })
+      .catch(() => {});
+
+    cargar();
+  }, [router]);
 
   async function cargar() {
     setCargando(true);
@@ -69,6 +80,16 @@ export default function AdminProgramas() {
       fetch("/api/admin/clientes?estado=activo"),
       fetch("/api/admin/estudios"),
     ]);
+
+    if (resP.status === 401 || resC.status === 401 || resE.status === 401) {
+      router.replace("/admin");
+      return;
+    }
+    if (resP.status === 403 || resC.status === 403 || resE.status === 403) {
+      router.replace("/admin/horarios");
+      return;
+    }
+
     const pData = await resP.json().catch(() => []);
     const cData = await resC.json().catch(() => []);
     const eData = await resE.json().catch(() => []);

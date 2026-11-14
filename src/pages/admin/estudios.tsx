@@ -15,11 +15,23 @@ export default function AdminEstudios() {
   const [editId, setEditId] = useState<number | null>(null);
   const [editNombre, setEditNombre] = useState("");
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.role === "OPERADOR") {
+          router.replace("/admin/horarios");
+        }
+      })
+      .catch(() => {});
+
+    cargar();
+  }, [router]);
 
   async function cargar() {
     const res = await fetch("/api/admin/estudios");
     if (res.status === 401) { router.replace("/admin"); return; }
+    if (res.status === 403) { router.replace("/admin/horarios"); return; }
     setEstudios(await res.json());
   }
 

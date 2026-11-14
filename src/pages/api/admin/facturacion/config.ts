@@ -1,12 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import pool from "@/lib/db";
-import { getArcaConfig } from "@/lib/arca";
+import { getArcaConfig, getArcaServiceUrl } from "@/lib/arca";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     try {
       const config = await getArcaConfig();
-      return res.status(200).json(config);
+      const envUrl = process.env.ARCA_SERVICE_URL || process.env.AFIP_SERVICE_URL || process.env.MICROSERVICIO_URL;
+      return res.status(200).json({
+        ...config,
+        serviceUrlFromEnv: Boolean(envUrl && envUrl.trim() !== ""),
+      });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
     }
@@ -18,6 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!cuit || !puntoVenta) {
       return res.status(400).json({ error: "CUIT y Punto de Venta son requeridos." });
     }
+
+    const finalServiceUrl = getArcaServiceUrl(serviceUrl);
 
     try {
       await pool.query(
@@ -34,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           Number(puntoVenta) || 1,
           Number(tipoComprobante) || 11,
           produccion === true ? 1 : 0,
-          String(serviceUrl || "http://localhost:3001").trim(),
+          finalServiceUrl,
         ]
       );
       return res.status(200).json({ ok: true, mensaje: "Configuración guardada correctamente." });

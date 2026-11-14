@@ -12,11 +12,24 @@ function fmtFecha(d: string | null | undefined): string {
   return isNaN(date.getTime()) ? "—" : date.toLocaleDateString("es-AR");
 }
 
+type TipoCobro = "POR_PROGRAMA" | "MES_ADELANTADO";
+
 type ProgHorario = { idprograma_horario: number; dia_semana: number; hora_inicio: string; hora_fin: string; estudio_nombre: string | null };
 type Programa = { idprograma: number; nombre: string; fecha_inicio: string; fecha_fin: string | null; activo: number; horarios: ProgHorario[] };
 type Sesion = { idsesion: number; fecha: string; asistio: number; monto: number; hora_inicio: string; hora_fin: string };
 type Pago = { idpago: number; monto: number; estado: string; fecha: string };
-type Cliente = { idcliente: number; nombre: string; dni: string; ingreso: number; egreso: number; balance: number; activo: number };
+type Cliente = {
+  idcliente: number;
+  nombre: string;
+  dni: string;
+  ingreso: number;
+  egreso: number;
+  balance: number;
+  activo: number;
+  mp_enabled: number;
+  tipo_cobro: TipoCobro;
+  monto_mensual: number | null;
+};
 type PrecioHistorial = { idhistorial: number; precio_hora: number; precio_reserva: number; fecha_desde: string; fecha_hasta: string | null };
 
 type Tab = "resumen" | "sesiones" | "pagos" | "precios";
@@ -26,6 +39,7 @@ export default function ClienteDetalle() {
   const { id } = router.query as { id: string };
 
   const [tab, setTab] = useState<Tab>("resumen");
+  const [role, setRole] = useState<"ADMIN" | "OPERADOR">("ADMIN");
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
@@ -33,6 +47,15 @@ export default function ClienteDetalle() {
   const [toggling, setToggling] = useState(false);
   const [preciosHistorial, setPreciosHistorial] = useState<PrecioHistorial[]>([]);
   const [precioGlobal, setPrecioGlobal] = useState<{ precio_hora: number; precio_reserva: number } | null>(null);
+
+  // Configuración de cobro / MP
+  const [editMpEnabled, setEditMpEnabled] = useState(true);
+  const [editTipoCobro, setEditTipoCobro] = useState<TipoCobro>("POR_PROGRAMA");
+  const [editMontoMensual, setEditMontoMensual] = useState("");
+  const [guardandoConfigCobro, setGuardandoConfigCobro] = useState(false);
+  const [msgConfigCobro, setMsgConfigCobro] = useState("");
+
+  // Precios modal
   const [modalPrecio, setModalPrecio] = useState(false);
   const [nuevoPrecioHora, setNuevoPrecioHora] = useState("");
   const [nuevoPrecioReserva, setNuevoPrecioReserva] = useState("");
@@ -40,11 +63,22 @@ export default function ClienteDetalle() {
   const [nuevaFechaDesde, setNuevaFechaDesde] = useState(new Date().toISOString().slice(0, 10));
   const [guardandoPrecio, setGuardandoPrecio] = useState(false);
   const [errorPrecio, setErrorPrecio] = useState("");
+
+  // Bonif modal
   const [modalBonif, setModalBonif] = useState(false);
   const [montoBonif, setMontoBonif] = useState("");
   const [motivoBonif, setMotivoBonif] = useState("");
   const [guardandoBonif, setGuardandoBonif] = useState(false);
   const [errorBonif, setErrorBonif] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.role) setRole(d.role);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -60,12 +94,44 @@ export default function ClienteDetalle() {
     if (resDetalle.status === 401) { router.replace("/admin"); return; }
     const detalle = await resDetalle.json();
     setCliente(detalle.cliente);
+    setEditMpEnabled(Number(detalle.cliente.mp_enabled) === 1);
+    setEditTipoCobro(detalle.cliente.tipo_cobro || "POR_PROGRAMA");
+    setEditMontoMensual(detalle.cliente.monto_mensual != null ? String(detalle.cliente.monto_mensual) : "");
     setSesiones(detalle.sesiones);
     setPagos(detalle.pagos);
     setProgramas(await resProgramas.json());
     const preciosData = await resPrecios.json();
     setPreciosHistorial(preciosData.historial ?? []);
     setPrecioGlobal(preciosData.global ?? null);
+  }
+
+  async function guardarConfigCobro() {
+    if (role === "OPERADOR") return;
+    setGuardandoConfigCobro(true);
+    setMsgConfigCobro("");
+    try {
+      const res = await fetch(`/api/admin/clientes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mp_enabled: editMpEnabled ? 1 : 0,
+          tipo_cobro: editTipoCobro,
+          monto_mensual: editTipoCobro === "MES_ADELANTADO" && editMontoMensual ? Number(editMontoMensual) : null,
+        }),
+      });
+      if (res.ok) {
+        setMsgConfigCobro("Configuración actualizada con éxito.");
+        await cargar();
+        setTimeout(() => setMsgConfigCobro(""), 3000);
+      } else {
+        const d = await res.json();
+        setMsgConfigCobro(d.error || "Error al actualizar.");
+      }
+    } catch {
+      setMsgConfigCobro("Error de conexión.");
+    } finally {
+      setGuardandoConfigCobro(false);
+    }
   }
 
   async function guardarPrecio() {
@@ -125,7 +191,7 @@ export default function ClienteDetalle() {
   }
 
   async function toggleActivo() {
-    if (!cliente) return;
+    if (!cliente || role === "OPERADOR") return;
     setToggling(true);
     await fetch(`/api/admin/clientes/${id}`, {
       method: "PATCH",
@@ -135,7 +201,6 @@ export default function ClienteDetalle() {
     await cargar();
     setToggling(false);
   }
-
 
   if (!cliente) return (
     <div className="min-h-[100dvh] bg-gray-950 flex items-center justify-center sm:pl-64">
@@ -152,11 +217,14 @@ export default function ClienteDetalle() {
   const phMostrar = precioVigente?.precio_hora ?? precioGlobal?.precio_hora;
   const prMostrar = precioVigente?.precio_reserva ?? precioGlobal?.precio_reserva;
 
+  // Si el usuario es operador, solo puede ver Resumen y Sesiones
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: "resumen",  label: "Resumen" },
     { key: "sesiones", label: "Sesiones", count: sesiones.length },
-    { key: "pagos",    label: "Pagos",    count: pagos.length },
-    { key: "precios",  label: "Precios" },
+    ...(role === "ADMIN" ? [
+      { key: "pagos" as Tab,    label: "Pagos",    count: pagos.length },
+      { key: "precios" as Tab,  label: "Precios" },
+    ] : []),
   ];
 
   return (
@@ -178,28 +246,35 @@ export default function ClienteDetalle() {
               }`}>
                 {cliente.activo ? "Activo" : "Inactivo"}
               </span>
+              {cliente.tipo_cobro === "MES_ADELANTADO" && (
+                <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-purple-600/20 text-purple-300">
+                  Mes adelantado
+                </span>
+              )}
             </div>
             <p className="text-gray-500 text-xs">DNI {cliente.dni}</p>
           </div>
         </div>
 
-        {/* Balance rápido */}
-        <div className="grid grid-cols-3 border-t border-gray-800/60">
-          <div className="text-center py-2.5 border-r border-gray-800/60">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide">Cobrado</p>
-            <p className="text-white font-bold text-sm mt-0.5">${Number(cliente.egreso).toLocaleString("es-AR")}</p>
+        {/* Balance rápido (solo Administrador) */}
+        {role === "ADMIN" && (
+          <div className="grid grid-cols-3 border-t border-gray-800/60">
+            <div className="text-center py-2.5 border-r border-gray-800/60">
+              <p className="text-gray-500 text-[10px] uppercase tracking-wide">Cobrado</p>
+              <p className="text-white font-bold text-sm mt-0.5">${Number(cliente.egreso).toLocaleString("es-AR")}</p>
+            </div>
+            <div className="text-center py-2.5 border-r border-gray-800/60">
+              <p className="text-gray-500 text-[10px] uppercase tracking-wide">Pagado</p>
+              <p className="text-green-400 font-bold text-sm mt-0.5">${Number(cliente.ingreso).toLocaleString("es-AR")}</p>
+            </div>
+            <div className="text-center py-2.5">
+              <p className="text-gray-500 text-[10px] uppercase tracking-wide">Deuda</p>
+              <p className={`font-bold text-sm mt-0.5 ${Number(cliente.balance) > 0 ? "text-yellow-400" : "text-green-400"}`}>
+                ${Number(cliente.balance).toLocaleString("es-AR")}
+              </p>
+            </div>
           </div>
-          <div className="text-center py-2.5 border-r border-gray-800/60">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide">Pagado</p>
-            <p className="text-green-400 font-bold text-sm mt-0.5">${Number(cliente.ingreso).toLocaleString("es-AR")}</p>
-          </div>
-          <div className="text-center py-2.5">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide">Deuda</p>
-            <p className={`font-bold text-sm mt-0.5 ${Number(cliente.balance) > 0 ? "text-yellow-400" : "text-green-400"}`}>
-              ${Number(cliente.balance).toLocaleString("es-AR")}
-            </p>
-          </div>
-        </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-t border-gray-800/60">
@@ -226,21 +301,86 @@ export default function ClienteDetalle() {
       </div>
 
       {/* Contenido por tab */}
-      <div className="flex-1 px-4 py-4 pb-8 max-w-2xl w-full mx-auto space-y-3">
+      <div className="flex-1 px-4 py-4 pb-8 max-w-2xl w-full mx-auto space-y-4">
 
         {/* ── RESUMEN ── */}
         {tab === "resumen" && (
           <>
+            {/* Modalidad de Cobro y Mercado Pago (Solo Admin puede editar) */}
+            {role === "ADMIN" && (
+              <section className="bg-gray-900 rounded-2xl p-4 space-y-3 border border-gray-800">
+                <h2 className="text-white font-semibold text-sm">Modalidad de Cobro y Pasarelas</h2>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-gray-400 text-xs block mb-1">Tipo de cobro</label>
+                    <select
+                      value={editTipoCobro}
+                      onChange={(e) => setEditTipoCobro(e.target.value as TipoCobro)}
+                      className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="POR_PROGRAMA">Por Programa / Sesión (Liquidación según asistencia)</option>
+                      <option value="MES_ADELANTADO">Mes Adelantado (Cuota mensual fija)</option>
+                    </select>
+                  </div>
+
+                  {editTipoCobro === "MES_ADELANTADO" && (
+                    <div>
+                      <label className="text-gray-400 text-xs block mb-1">Monto cuota mensual ($)</label>
+                      <input
+                        type="number"
+                        placeholder="Ej: 35000"
+                        value={editMontoMensual}
+                        onChange={(e) => setEditMontoMensual(e.target.value)}
+                        className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+
+                  <div className="pt-1">
+                    <label className="flex items-center gap-3 cursor-pointer p-3 bg-gray-800/60 rounded-xl border border-gray-700/60">
+                      <input
+                        type="checkbox"
+                        checked={editMpEnabled}
+                        onChange={(e) => setEditMpEnabled(e.target.checked)}
+                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-gray-800 border-gray-700"
+                      />
+                      <div>
+                        <span className="text-sm text-white font-medium block">Habilitar cobro con Mercado Pago QR</span>
+                        <span className="text-xs text-gray-400 block">Si se desmarca, el kiosco forzará pago por transferencia</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {msgConfigCobro && (
+                    <p className={`text-xs ${msgConfigCobro.includes("éxito") ? "text-green-400" : "text-red-400"}`}>
+                      {msgConfigCobro}
+                    </p>
+                  )}
+
+                  <button
+                    onClick={guardarConfigCobro}
+                    disabled={guardandoConfigCobro}
+                    className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold py-2.5 rounded-xl transition-colors"
+                  >
+                    {guardandoConfigCobro ? "Guardando..." : "Guardar cambios de cobro"}
+                  </button>
+                </div>
+              </section>
+            )}
+
             {/* Programas */}
-            <section className="bg-gray-900 rounded-2xl overflow-hidden">
+            <section className="bg-gray-900 rounded-2xl overflow-hidden border border-gray-800">
               <div className="flex items-center justify-between px-4 pt-4 pb-3">
                 <h2 className="text-white font-semibold text-sm">Programas</h2>
-                <Link
-                  href="/admin/programas"
-                  className="text-blue-400 text-xs font-medium hover:text-blue-300 transition-colors"
-                >
-                  Gestionar
-                </Link>
+                {role === "ADMIN" && (
+                  <Link
+                    href="/admin/programas"
+                    className="text-blue-400 text-xs font-medium hover:text-blue-300 transition-colors"
+                  >
+                    Gestionar
+                  </Link>
+                )}
               </div>
               {programas.length === 0 ? (
                 <p className="text-gray-500 text-sm px-4 pb-4">Sin programas asignados.</p>
@@ -273,44 +413,48 @@ export default function ClienteDetalle() {
               )}
             </section>
 
-            {/* Bonificación */}
-            <section className="bg-gray-900 rounded-2xl p-4 space-y-3">
-              <h2 className="text-white font-semibold text-sm">Bonificaciones</h2>
-              <p className="text-gray-500 text-sm">Acreditá saldo a favor del cliente.</p>
-              <button
-                onClick={() => { setModalBonif(true); setErrorBonif(""); }}
-                className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
-              >
-                + Cargar bonificación
-              </button>
-            </section>
+            {/* Bonificación (solo Admin) */}
+            {role === "ADMIN" && (
+              <section className="bg-gray-900 rounded-2xl p-4 space-y-3 border border-gray-800">
+                <h2 className="text-white font-semibold text-sm">Bonificaciones</h2>
+                <p className="text-gray-500 text-sm">Acreditá saldo a favor del cliente o cargá débitos especiales.</p>
+                <button
+                  onClick={() => { setModalBonif(true); setErrorBonif(""); }}
+                  className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+                >
+                  + Cargar bonificación
+                </button>
+              </section>
+            )}
 
-            {/* Estado */}
-            <section className="bg-gray-900 rounded-2xl p-4 space-y-3">
-              <h2 className="text-white font-semibold text-sm">Estado del cliente</h2>
-              <p className="text-gray-500 text-sm">
-                {cliente.activo
-                  ? "El cliente puede registrar sesiones en el kiosco."
-                  : "El cliente está desactivado y no aparece en el kiosco."}
-              </p>
-              <button
-                onClick={toggleActivo}
-                disabled={toggling}
-                className={`w-full font-semibold py-3 rounded-xl transition-colors disabled:opacity-50 text-sm ${
-                  cliente.activo
-                    ? "bg-red-700 hover:bg-red-600 active:bg-red-800 text-white"
-                    : "bg-green-700 hover:bg-green-600 active:bg-green-800 text-white"
-                }`}
-              >
-                {toggling ? "Guardando..." : cliente.activo ? "Desactivar cliente" : "Reactivar cliente"}
-              </button>
-            </section>
+            {/* Estado (solo Admin) */}
+            {role === "ADMIN" && (
+              <section className="bg-gray-900 rounded-2xl p-4 space-y-3 border border-gray-800">
+                <h2 className="text-white font-semibold text-sm">Estado del cliente</h2>
+                <p className="text-gray-500 text-sm">
+                  {cliente.activo
+                    ? "El cliente puede registrar sesiones en el kiosco."
+                    : "El cliente está desactivado y no aparece en el kiosco."}
+                </p>
+                <button
+                  onClick={toggleActivo}
+                  disabled={toggling}
+                  className={`w-full font-semibold py-3 rounded-xl transition-colors disabled:opacity-50 text-sm ${
+                    cliente.activo
+                      ? "bg-red-700 hover:bg-red-600 active:bg-red-800 text-white"
+                      : "bg-green-700 hover:bg-green-600 active:bg-green-800 text-white"
+                  }`}
+                >
+                  {toggling ? "Guardando..." : cliente.activo ? "Desactivar cliente" : "Reactivar cliente"}
+                </button>
+              </section>
+            )}
           </>
         )}
 
         {/* ── SESIONES ── */}
         {tab === "sesiones" && (
-          <section className="bg-gray-900 rounded-2xl overflow-hidden">
+          <section className="bg-gray-900 rounded-2xl overflow-hidden border border-gray-800">
             {sesiones.length === 0 ? (
               <p className="text-gray-500 text-sm p-4">Sin sesiones registradas.</p>
             ) : (
@@ -324,11 +468,13 @@ export default function ClienteDetalle() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-white text-sm font-semibold">${Number(s.monto).toLocaleString("es-AR")}</p>
+                      {role === "ADMIN" && (
+                        <p className="text-white text-sm font-semibold">${Number(s.monto).toLocaleString("es-AR")}</p>
+                      )}
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 inline-block ${
                         s.asistio ? "bg-green-600/20 text-green-400" : "bg-red-600/20 text-red-400"
                       }`}>
-                        {s.asistio ? "Asistió" : "Reserva"}
+                        {s.asistio ? "Asistió" : "Reserva / Falta"}
                       </span>
                     </div>
                   </div>
@@ -338,9 +484,9 @@ export default function ClienteDetalle() {
           </section>
         )}
 
-        {/* ── PAGOS ── */}
-        {tab === "pagos" && (
-          <section className="bg-gray-900 rounded-2xl overflow-hidden">
+        {/* ── PAGOS (solo Admin) ── */}
+        {tab === "pagos" && role === "ADMIN" && (
+          <section className="bg-gray-900 rounded-2xl overflow-hidden border border-gray-800">
             {pagos.length === 0 ? (
               <p className="text-gray-500 text-sm p-4">Sin pagos registrados.</p>
             ) : (
@@ -365,10 +511,10 @@ export default function ClienteDetalle() {
           </section>
         )}
 
-        {/* ── PRECIOS ── */}
-        {tab === "precios" && (
+        {/* ── PRECIOS (solo Admin) ── */}
+        {tab === "precios" && role === "ADMIN" && (
           <>
-            <section className="bg-gray-900 rounded-2xl p-4 space-y-3">
+            <section className="bg-gray-900 rounded-2xl p-4 space-y-3 border border-gray-800">
               <div className="flex items-center justify-between">
                 <h2 className="text-white font-semibold text-sm">Precio actual</h2>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${fuente === "individual" ? "bg-blue-600/20 text-blue-400" : "bg-gray-700 text-gray-400"}`}>
@@ -420,7 +566,7 @@ export default function ClienteDetalle() {
             </section>
 
             {preciosHistorial.length > 0 && (
-              <section className="bg-gray-900 rounded-2xl overflow-hidden">
+              <section className="bg-gray-900 rounded-2xl overflow-hidden border border-gray-800">
                 <p className="text-gray-500 text-xs font-medium px-4 pt-3 pb-2 uppercase tracking-wide">Historial</p>
                 <div className="divide-y divide-gray-800">
                   {preciosHistorial.map((p) => (

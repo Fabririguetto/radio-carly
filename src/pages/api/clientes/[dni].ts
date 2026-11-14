@@ -18,6 +18,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const [rows] = await pool.query(
     `SELECT c.idcliente, c.dni, c.nombre,
+            COALESCE(c.mp_enabled, 1) AS mp_enabled,
+            COALESCE(c.tipo_cobro, 'POR_PROGRAMA') AS tipo_cobro,
+            c.monto_mensual,
             COALESCE(ct.balance, 0) AS balance
      FROM clientes c
      LEFT JOIN ctacte ct ON ct.idcliente = c.idcliente
@@ -28,5 +31,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const clientes = rows as any[];
   if (clientes.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' });
 
-  res.status(200).json(clientes[0]);
+  const cliente = clientes[0];
+  res.status(200).json({
+    ...cliente,
+    mp_enabled: Number(cliente.mp_enabled),
+    balance: Number(cliente.balance),
+    monto_mensual: cliente.monto_mensual != null ? Number(cliente.monto_mensual) : null,
+  });
 }

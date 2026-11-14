@@ -1,0 +1,15 @@
+services:
+  radio-carly:
+    build: .
+    container_name: radio-carly
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    networks:
+      - web_network
+
+networks:
+  web_network:
+    external: true

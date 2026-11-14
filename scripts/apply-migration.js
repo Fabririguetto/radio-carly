@@ -159,6 +159,31 @@ async function run() {
       console.log('[DB] Columnas en config ya existen');
     }
 
+    // 7b. Columnas operador en config
+    const [opCols] = await conn.query("SHOW COLUMNS FROM config LIKE 'operador_dni'");
+    if (opCols.length === 0) {
+      await conn.query(`
+        ALTER TABLE config
+          ADD COLUMN operador_dni VARCHAR(20) DEFAULT NULL,
+          ADD COLUMN operador_password VARCHAR(255) DEFAULT NULL
+      `);
+      console.log('[DB] Columnas operador_dni y operador_password agregadas a config');
+    }
+
+    // 7c. Columnas en clientes: mp_enabled, tipo_cobro, monto_mensual
+    const [cliMpCols] = await conn.query("SHOW COLUMNS FROM clientes LIKE 'mp_enabled'");
+    if (cliMpCols.length === 0) {
+      await conn.query(`
+        ALTER TABLE clientes
+          ADD COLUMN mp_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER activo,
+          ADD COLUMN tipo_cobro ENUM('POR_PROGRAMA', 'MES_ADELANTADO') NOT NULL DEFAULT 'POR_PROGRAMA' AFTER mp_enabled,
+          ADD COLUMN monto_mensual DECIMAL(10,2) DEFAULT NULL AFTER tipo_cobro,
+          ADD KEY idx_clientes_tipo_cobro (tipo_cobro),
+          ADD KEY idx_clientes_mp_enabled (mp_enabled)
+      `);
+      console.log('[DB] Columnas mp_enabled, tipo_cobro y monto_mensual agregadas a clientes');
+    }
+
     // 8. Columna tipo y comprobante_transferencia en pagos
     const [tipoCols] = await conn.query("SHOW COLUMNS FROM pagos LIKE 'tipo'");
     if (tipoCols.length === 0) {
@@ -239,7 +264,6 @@ async function run() {
     console.log('[DB] Todas las migraciones completadas con éxito.');
   } catch (err) {
     console.error('[DB] Error ejecutando migración:', err);
-    // No salimos con error fatal en caso de warning para permitir iniciar el servidor
     process.exit(1);
   }
 }

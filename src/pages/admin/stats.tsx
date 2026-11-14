@@ -38,15 +38,14 @@ function rangoDePeriodo(p: Periodo, desde: string, hasta: string) {
   return { desde, hasta };
 }
 
-function labelFecha(iso: string) {
-  return new Date(iso + "T12:00:00").toLocaleDateString("es-AR", {
-    day: "numeric", month: "short", year: "numeric",
-  });
+function fmtFecha(iso: string) {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
 }
 
 function labelPeriodo(desde: string, hasta: string) {
-  if (desde === hasta) return labelFecha(desde);
-  return `${labelFecha(desde)} – ${labelFecha(hasta)}`;
+  if (desde === hasta) return fmtFecha(desde);
+  return `${fmtFecha(desde)} al ${fmtFecha(hasta)}`;
 }
 
 function mesActual() {
@@ -77,7 +76,6 @@ export default function AdminStats() {
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [cargando, setCargando] = useState(false);
-
   const [mes, setMes] = useState(mesActual());
   const [exportando, setExportando] = useState(false);
 
@@ -85,12 +83,22 @@ export default function AdminStats() {
     setCargando(true);
     const res = await fetch(`/api/admin/stats?desde=${d}&hasta=${h}`);
     if (res.status === 401) { router.replace("/admin"); return; }
+    if (res.status === 403) { router.replace("/admin/horarios"); return; }
     setStats(await res.json());
     setCargando(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [router]);
 
-  // Carga inicial
+  // Carga inicial y chequeo de rol
   useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.role === "OPERADOR") {
+          router.replace("/admin/horarios");
+        }
+      })
+      .catch(() => {});
+
     const { desde: d, hasta: h } = rangoDePeriodo("hoy", desde, hasta);
     cargar(d, h);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,6 +120,11 @@ export default function AdminStats() {
   async function exportarCSV() {
     setExportando(true);
     const res = await fetch(`/api/admin/export?mes=${mes}`);
+    if (res.status === 403) {
+      alert("No tenés permisos para exportar balances.");
+      setExportando(false);
+      return;
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

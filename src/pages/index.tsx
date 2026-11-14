@@ -6,6 +6,9 @@ type Cliente = {
   dni: string;
   nombre: string;
   balance: number;
+  mp_enabled?: number;
+  tipo_cobro?: "POR_PROGRAMA" | "MES_ADELANTADO";
+  monto_mensual?: number | null;
 };
 
 type Sesion = {
@@ -18,7 +21,6 @@ type Sesion = {
   estudio_nombre?: string | null;
 };
 
-
 type Paso = "dni" | "notif" | "horarios" | "pago" | "qr" | "mp_result";
 
 type HorarioConSesion = {
@@ -29,7 +31,6 @@ type HorarioConSesion = {
   programa_nombre: string | null;
   sesion: { idsesion: number; asistio: number; monto: number } | null;
 };
-
 
 type NotifActiva = {
   idnotificacion: number;
@@ -131,7 +132,6 @@ export default function Home() {
     }
   }, [router.query]); // eslint-disable-line react-hooks/exhaustive-deps
 
-
   // Foco automático en input de monto al entrar al paso pago (para numpad físico)
   useEffect(() => {
     if (paso === "pago" && totalDebido > 0) {
@@ -165,8 +165,6 @@ export default function Home() {
   }, [paso]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Polling: detecta pago aprobado cada 3s.
-  // Se mantiene activo hasta que el pago se detecte o reiniciar() lo limpie,
-  // lo que permite un período de gracia tras el vencimiento del QR.
   useEffect(() => {
     if (paso !== "qr" || !orderId) return;
 
@@ -203,8 +201,6 @@ export default function Home() {
         if (t <= 1) {
           clearInterval(qrCountdownRef.current!);
           qrCountdownRef.current = null;
-          // El polling sigue activo 2s más (período de gracia) por si el pago
-          // fue escaneado en el último segundo. salirDeQR → reiniciar lo limpia.
           setQrVencido(true);
           setTimeout(() => salirDeQR(), 2000);
           return 0;
@@ -293,8 +289,7 @@ export default function Home() {
       return;
     }
 
-    // Si hay exactamente un horario activo ahora (ventana de 15 min antes hasta fin),
-    // registrar asistencia automáticamente sin pasar por la pantalla de selección.
+    // Registro automático si hay exactamente un horario activo
     const activos = pendientes.filter((h) => isHorarioActivo(h.hora_inicio, h.hora_fin));
     if (activos.length === 1) {
       const h = activos[0];
@@ -314,7 +309,6 @@ export default function Home() {
           return;
         }
         if (res.status === 409) {
-          // Ya registrada por otra vía → ir a pago con saldo actual
           setTotalDebido(data.balance);
           setMontoPagar(data.balance > 0 ? String(data.balance) : "");
           setCargando(false);
@@ -322,13 +316,14 @@ export default function Home() {
           return;
         }
         const sesData = await res.json();
-        const nuevoBalance = data.balance + sesData.monto;
+        const montoCargo = Number(sesData.monto || 0);
+        const nuevoBalance = data.balance + montoCargo;
         setCliente({ ...data, balance: nuevoBalance });
         setSesion({
           idsesion: 0,
           idprograma_horario: h.idprograma_horario,
           asistio: 1,
-          monto: sesData.monto,
+          monto: montoCargo,
           hora_inicio: h.hora_inicio,
           hora_fin: h.hora_fin,
           estudio_nombre: h.estudio_nombre,
@@ -360,7 +355,6 @@ export default function Home() {
       });
 
       if (res.status === 409) {
-        // Ya registrada por otra vía — refrescar lista
         const resSesion = await fetch(`/api/sesiones/hoy?idcliente=${cliente.idcliente}`);
         const d = await resSesion.json();
         setHorariosHoy(d.horarios ?? []);
@@ -386,13 +380,14 @@ export default function Home() {
       }
 
       const data = await res.json();
-      const nuevoBalance = Number(cliente.balance) + Number(data.monto);
+      const montoCargo = Number(data.monto || 0);
+      const nuevoBalance = Number(cliente.balance) + montoCargo;
       setCliente({ ...cliente, balance: nuevoBalance });
       setSesion({
         idsesion: 0,
         idprograma_horario: h.idprograma_horario,
         asistio: 1,
-        monto: data.monto,
+        monto: montoCargo,
         hora_inicio: h.hora_inicio,
         hora_fin: h.hora_fin,
         estudio_nombre: h.estudio_nombre,
@@ -587,6 +582,10 @@ export default function Home() {
     </div>
   );
 
+  // Validación combinada de disponibilidad de Mercado Pago: tope mensual global y flag individual
+  const mpDeshabilitadoCliente = (cliente?.mp_enabled ?? 1) === 0;
+  const mpNoDisponible = mpBloqueado || mpDeshabilitadoCliente;
+
   return (
     <div className="min-h-[100dvh] bg-gray-950 flex flex-col">
 
@@ -712,7 +711,7 @@ export default function Home() {
                       {yaRegistrado && (
                         <span className={`text-xs shrink-0 ${asistio === 1 ? "text-green-400" : "text-gray-500"}`}>
                           {asistio === 1
-                            ? `Asistió · $${h.sesion!.monto.toLocaleString("es-AR")}`
+                            ? (cliente.tipo_cobro === "MES_ADELANTADO" ? "Asistió · Mensual" : `Asistió · $${h.sesion!.monto.toLocaleString("es-AR")}`)
                             : "No asistió"}
                         </span>
                       )}
@@ -745,7 +744,7 @@ export default function Home() {
                 <div>
                   <p className="text-white font-bold text-2xl">{cliente.nombre}</p>
                   <p className="text-green-400 font-semibold mt-1">¡Estás al día!</p>
-                  <p className="text-gray-500 text-sm mt-1">No tenés deuda pendiente.</p>
+                  <p className="text-gray-500 text-sm mt-1">No tenés saldo pendiente.</p>
                 </div>
                 <button onClick={reiniciar} className="text-gray-500 text-sm py-3">← Volver</button>
               </div>
@@ -766,9 +765,18 @@ export default function Home() {
                     </p>
                     {sesion && (
                       <p className="text-gray-500 text-xs mt-1">
-                        Incluye sesión de hoy: ${Number(sesion.monto).toLocaleString("es-AR")}
-                        {sesion.asistio === 0 ? " (reserva)" : ""}
-                        {sesion.estudio_nombre ? ` · ${sesion.estudio_nombre}` : ""}
+                        {cliente.tipo_cobro === "MES_ADELANTADO" ? (
+                          <span className="text-blue-400 font-medium">
+                            Asistencia registrada · Plan Mes Adelantado (sin cargo diario)
+                            {sesion.estudio_nombre ? ` · ${sesion.estudio_nombre}` : ""}
+                          </span>
+                        ) : (
+                          <>
+                            Incluye sesión de hoy: ${Number(sesion.monto).toLocaleString("es-AR")}
+                            {sesion.asistio === 0 ? " (reserva)" : ""}
+                            {sesion.estudio_nombre ? ` · ${sesion.estudio_nombre}` : ""}
+                          </>
+                        )}
                       </p>
                     )}
                   </div>
@@ -783,7 +791,7 @@ export default function Home() {
                     min="1"
                     value={montoPagar}
                     onChange={(e) => setMontoPagar(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !cargando && Number(montoPagar) > 0) generarQR(); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !cargando && Number(montoPagar) > 0 && !mpNoDisponible) generarQR(); }}
                     className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
@@ -814,18 +822,20 @@ export default function Home() {
                     </div>
                     <p className="text-gray-500 text-xs">Volviendo al inicio...</p>
                   </div>
-                ) : mpBloqueado ? (
+                ) : mpNoDisponible ? (
                   <div className="space-y-4">
-                    {/* Alerta de MP bloqueado */}
+                    {/* Alerta explicativa de por qué MP no está disponible */}
                     <div className="bg-amber-950/40 border border-amber-600/40 rounded-xl p-3 text-left">
                       <p className="text-amber-400 text-sm font-semibold flex items-center gap-1.5">
                         <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        Mercado Pago no disponible
+                        {mpDeshabilitadoCliente ? "Mercado Pago no disponible para tu cuenta" : "Mercado Pago no disponible"}
                       </p>
                       <p className="text-amber-200/80 text-xs mt-0.5">
-                        Se alcanzó el límite mensual de facturación con Mercado Pago. Podés abonar mediante <strong>transferencia bancaria</strong>.
+                        {mpDeshabilitadoCliente
+                          ? "Tu cuenta está configurada para abonar exclusivamente mediante transferencia bancaria."
+                          : "Se alcanzó el límite mensual de facturación con Mercado Pago. Podés abonar mediante transferencia bancaria."}
                       </p>
                     </div>
 

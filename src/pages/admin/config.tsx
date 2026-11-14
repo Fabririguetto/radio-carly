@@ -73,11 +73,30 @@ export default function AdminConfig() {
   const [exitoLimite, setExitoLimite] = useState("");
   const [errorLimite, setErrorLimite] = useState("");
 
+  // Acceso Operador
+  const [operadorDni, setOperadorDni] = useState("");
+  const [operadorPassword, setOperadorPassword] = useState("");
+  const [tieneOperadorPassword, setTieneOperadorPassword] = useState(false);
+  const [guardandoOperador, setGuardandoOperador] = useState(false);
+  const [exitoOperador, setExitoOperador] = useState("");
+  const [errorOperador, setErrorOperador] = useState("");
+
   useEffect(() => {
+    // Verificación de rol y redirección si es Operador
+    fetch("/api/admin/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.role === "OPERADOR") {
+          router.replace("/admin/horarios");
+        }
+      })
+      .catch(() => {});
+
     fetch("/api/admin/config").then((r) => {
-      if (r.status === 401) { router.replace("/admin"); return r; }
-      return r;
-    }).then((r) => r.json()).then((d) => {
+      if (r.status === 401) { router.replace("/admin"); return null; }
+      if (r.status === 403) { router.replace("/admin/horarios"); return null; }
+      return r.json();
+    }).then((d) => {
       if (!d) return;
       setPrecioHora(String(d.precio_hora));
       setPrecioReserva(String(d.precio_reserva));
@@ -90,6 +109,8 @@ export default function AdminConfig() {
       setTransferenciaAlias(d.transferencia_alias || "");
       setTransferenciaTitular(d.transferencia_titular || "");
       setTransferenciaBanco(d.transferencia_banco || "");
+      setOperadorDni(d.operador_dni || "");
+      setTieneOperadorPassword(Boolean(d.tiene_operador_password));
     });
 
     cargarEstadoMp();
@@ -103,10 +124,14 @@ export default function AdminConfig() {
       setErrorMp(MP_ERROR_MSG[String(reason)] ?? "Error al conectar con Mercado Pago.");
       router.replace("/admin/config", undefined, { shallow: true });
     }
-  }, [router.query]);
+  }, [router.query, router]);
 
   function cargarEstadoMp() {
-    fetch("/api/admin/mp-config").then((r) => r.json()).then((d: MpEstado) => {
+    fetch("/api/admin/mp-config").then((r) => {
+      if (r.status === 403) return null;
+      return r.json();
+    }).then((d: MpEstado | null) => {
+      if (!d) return;
       setMpEstado(d);
       if (d.nombre_negocio) setMpNegocio(d.nombre_negocio);
       if (d.direccion) setMpDireccion(d.direccion);
@@ -166,6 +191,36 @@ export default function AdminConfig() {
       setErrorLimite("Error de conexión al guardar.");
     } finally {
       setGuardandoLimite(false);
+    }
+  }
+
+  async function guardarOperador() {
+    setErrorOperador("");
+    setExitoOperador("");
+    setGuardandoOperador(true);
+    try {
+      const res = await fetch("/api/admin/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operador_dni: operadorDni.trim() || null,
+          operador_password: operadorPassword.trim() || undefined,
+        }),
+      });
+      if (res.ok) {
+        setExitoOperador("Credenciales del operador guardadas correctamente.");
+        if (operadorPassword.trim()) {
+          setTieneOperadorPassword(true);
+          setOperadorPassword("");
+        }
+      } else {
+        const d = await res.json();
+        setErrorOperador(d.error || "Error al guardar credenciales de operador.");
+      }
+    } catch {
+      setErrorOperador("Error de conexión al guardar.");
+    } finally {
+      setGuardandoOperador(false);
     }
   }
 
@@ -412,6 +467,59 @@ export default function AdminConfig() {
           </button>
         </div>
 
+        {/* Acceso Personal de Recepción (Operador) */}
+        <div className="bg-gray-900 rounded-2xl p-5 space-y-4">
+          <div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-white font-semibold text-base">Acceso Operador (Recepción)</h2>
+              <span className="text-xs bg-blue-900/60 text-blue-300 border border-blue-700/40 px-2 py-0.5 rounded-full font-medium">
+                Rol Restringido
+              </span>
+            </div>
+            <p className="text-gray-500 text-xs mt-1">
+              Configurá el DNI y la contraseña para el personal de recepción. El Operador sólo tiene acceso al Calendario, Clientes (sin datos financieros), Caja diaria y Ayuda. Las áreas contables, estadísticas y configuraciones están estrictamente restringidas.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-gray-400 text-sm">DNI del Operador</label>
+              <input
+                type="text"
+                value={operadorDni}
+                onChange={(e) => setOperadorDni(e.target.value)}
+                placeholder="Ej: 30123456"
+                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-gray-400 text-sm">Contraseña del Operador</label>
+              <input
+                type="password"
+                value={operadorPassword}
+                onChange={(e) => setOperadorPassword(e.target.value)}
+                placeholder={tieneOperadorPassword ? "•••••••• (dejar en blanco para mantener)" : "Ingresá la contraseña"}
+                className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {tieneOperadorPassword && (
+                <p className="text-emerald-400 text-xs">✓ Contraseña actualmente configurada</p>
+              )}
+            </div>
+          </div>
+
+          {errorOperador && <p className="text-red-400 text-sm">{errorOperador}</p>}
+          {exitoOperador && <p className="text-green-400 text-sm">{exitoOperador}</p>}
+
+          <button
+            onClick={guardarOperador}
+            disabled={guardandoOperador}
+            className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl transition-colors text-base"
+          >
+            {guardandoOperador ? "Guardando..." : "Guardar credenciales de operador"}
+          </button>
+        </div>
+
         {/* Mercado Pago */}
         <div className="bg-gray-900 rounded-2xl p-5 space-y-4">
           <div className="flex items-center justify-between">
@@ -550,71 +658,60 @@ export default function AdminConfig() {
             </p>
           </div>
 
-          {/* Estado actual / Barra de consumo */}
-          {Number(mpLimiteMensual) > 0 ? (
-            <div className="bg-gray-800/80 rounded-xl p-4 space-y-2 border border-gray-700">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-400">Consumo mensual de MP</span>
-                <span className={`px-2 py-0.5 rounded-full font-semibold text-[10px] ${
-                  mpBloqueado ? "bg-red-950 text-red-300 border border-red-800" : "bg-green-950 text-green-300 border border-green-800"
-                }`}>
-                  {mpBloqueado ? "LÍMITE ALCANZADO (MP BLOQUEADO)" : "DISPONIBLE"}
-                </span>
-              </div>
-              
-              <div className="w-full bg-gray-700 h-2.5 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-500 ${
-                    mpBloqueado
-                      ? "bg-red-500"
-                      : (mpConsumidoMes / Number(mpLimiteMensual)) > 0.8
-                        ? "bg-yellow-400"
-                        : "bg-green-500"
-                  }`}
-                  style={{ width: `${Math.min(100, Math.round((mpConsumidoMes / Number(mpLimiteMensual)) * 100))}%` }}
-                />
-              </div>
-
-              <div className="flex justify-between text-xs pt-1">
-                <span className="text-white font-mono font-medium">
-                  ${mpConsumidoMes.toLocaleString("es-AR")} facturados
-                </span>
-                <span className="text-gray-400 font-mono">
-                  Tope: ${Number(mpLimiteMensual).toLocaleString("es-AR")} ({Math.round((mpConsumidoMes / Number(mpLimiteMensual)) * 100)}%)
-                </span>
-              </div>
-              {!mpBloqueado && mpRestante > 0 && (
-                <p className="text-gray-500 text-[11px]">
-                  Resta disponible este mes: <span className="text-green-400 font-medium">${mpRestante.toLocaleString("es-AR")}</span>
-                </p>
-              )}
+          {/* Tarjeta de estado de consumo actual */}
+          <div className="bg-gray-800/80 rounded-xl p-4 border border-gray-700 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-400">Consumo del mes actual:</span>
+              <span className="text-white font-bold">
+                ${Number(mpConsumidoMes).toLocaleString("es-AR")}
+              </span>
             </div>
-          ) : (
-            <div className="bg-gray-800/40 rounded-xl p-3 border border-gray-800">
-              <p className="text-gray-400 text-xs">
-                Actualmente no hay límite mensual configurado (cobros ilimitados por Mercado Pago).
-              </p>
-            </div>
-          )}
+            {mpLimiteMensual && Number(mpLimiteMensual) > 0 ? (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">Límite configurado:</span>
+                  <span className="text-white font-bold">
+                    ${Number(mpLimiteMensual).toLocaleString("es-AR")}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">Margen disponible:</span>
+                  <span className={`font-bold ${mpBloqueado ? "text-red-400" : "text-green-400"}`}>
+                    ${Number(mpRestante).toLocaleString("es-AR")}
+                  </span>
+                </div>
+                {mpBloqueado && (
+                  <div className="mt-2 text-xs bg-red-950/70 border border-red-800/80 text-red-300 rounded-lg p-2.5 flex items-center gap-2">
+                    <svg className="w-4 h-4 shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>Límite mensual alcanzado. La opción de pago QR en kiosco está temporalmente bloqueada.</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-gray-400">Sin límite mensual establecido (ilimitado).</p>
+            )}
+          </div>
 
           <div className="space-y-1.5">
-            <label className="text-gray-400 text-sm">Límite mensual Mercado Pago ($) — 0 o vacío = sin límite</label>
+            <label className="text-gray-400 text-sm">Tope mensual de Mercado Pago ($) — Dejar vacío para sin límite</label>
             <input
               type="number"
               inputMode="numeric"
               min="0"
-              placeholder="Ej: 500000"
               value={mpLimiteMensual}
               onChange={(e) => setMpLimiteMensual(e.target.value)}
+              placeholder="Ej: 500000"
               className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div className="pt-2 border-t border-gray-800 space-y-3">
-            <p className="text-white font-medium text-xs uppercase tracking-wider">Datos bancarios para Transferencias</p>
-            
-            <div className="space-y-1.5">
-              <label className="text-gray-400 text-sm">Banco / Billetera</label>
+            <h3 className="text-sm font-semibold text-gray-200">Datos Bancarios para Transferencias</h3>
+
+            <div className="space-y-1">
+              <label className="text-gray-400 text-sm">Banco / Entidad</label>
               <input
                 type="text"
                 value={transferenciaBanco}
@@ -624,29 +721,30 @@ export default function AdminConfig() {
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <label className="text-gray-400 text-sm">Titular de la cuenta</label>
               <input
                 type="text"
                 value={transferenciaTitular}
                 onChange={(e) => setTransferenciaTitular(e.target.value)}
-                placeholder="Ej: Juan Pérez"
+                placeholder="Ej: Radio Carly S.R.L."
                 className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-gray-400 text-sm">CBU / CVU</label>
+            <div className="space-y-1">
+              <label className="text-gray-400 text-sm">CBU / CVU (22 dígitos)</label>
               <input
                 type="text"
+                maxLength={22}
                 value={transferenciaCbu}
-                onChange={(e) => setTransferenciaCbu(e.target.value)}
-                placeholder="Ej: 0720000000000000000000"
+                onChange={(e) => setTransferenciaCbu(e.target.value.replace(/\D/g, ""))}
+                placeholder="0000003100010000000000"
                 className="w-full bg-gray-800 text-white font-mono border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <label className="text-gray-400 text-sm">Alias</label>
               <input
                 type="text"

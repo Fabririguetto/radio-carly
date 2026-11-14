@@ -40,6 +40,7 @@ type ArcaConfig = {
   tipoComprobante: number;
   produccion: boolean;
   serviceUrl: string;
+  serviceUrlFromEnv?: boolean;
 };
 
 const TIPO_CBTE_LABEL: Record<number, string> = {
@@ -90,6 +91,7 @@ export default function AdminFacturacion() {
     tipoComprobante: 11,
     produccion: false,
     serviceUrl: "http://localhost:3001",
+    serviceUrlFromEnv: false,
   });
   const [guardandoConfig, setGuardandoConfig] = useState(false);
   const [probandoSalud, setProbandoSalud] = useState(false);
@@ -104,6 +106,7 @@ export default function AdminFacturacion() {
     try {
       const res = await fetch("/api/admin/facturacion/pendientes");
       if (res.status === 401) { router.replace("/admin"); return; }
+      if (res.status === 403) { router.replace("/admin/horarios"); return; }
       const data = await res.json();
       setPendientes(data || []);
     } catch {
@@ -118,6 +121,7 @@ export default function AdminFacturacion() {
     try {
       const res = await fetch("/api/admin/facturacion/comprobantes");
       if (res.status === 401) { router.replace("/admin"); return; }
+      if (res.status === 403) { router.replace("/admin/horarios"); return; }
       const data = await res.json();
       setComprobantes(data || []);
     } catch {
@@ -131,6 +135,7 @@ export default function AdminFacturacion() {
     try {
       const res = await fetch("/api/admin/facturacion/config");
       if (res.status === 401) { router.replace("/admin"); return; }
+      if (res.status === 403) { router.replace("/admin/horarios"); return; }
       const data = await res.json();
       if (data) {
         setConfig({
@@ -139,6 +144,7 @@ export default function AdminFacturacion() {
           tipoComprobante: data.tipoComprobante || 11,
           produccion: Boolean(data.produccion),
           serviceUrl: data.serviceUrl || "http://localhost:3001",
+          serviceUrlFromEnv: Boolean(data.serviceUrlFromEnv),
         });
       }
     } catch {
@@ -147,10 +153,19 @@ export default function AdminFacturacion() {
   }, [router]);
 
   useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.role === "OPERADOR") {
+          router.replace("/admin/horarios");
+        }
+      })
+      .catch(() => {});
+
     cargarPendientes();
     cargarComprobantes();
     cargarConfig();
-  }, [cargarPendientes, cargarComprobantes, cargarConfig]);
+  }, [cargarPendientes, cargarComprobantes, cargarConfig, router]);
 
   function toggleSeleccion(idpago: number) {
     setSeleccionados((prev) =>
@@ -661,14 +676,24 @@ export default function AdminFacturacion() {
               </div>
 
               <div className="space-y-1.5 pt-2">
-                <label className="text-gray-400 text-xs">URL del Microservicio ARCA</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-gray-400 text-xs">URL del Microservicio ARCA</label>
+                  <span className="text-[10px] bg-blue-900/60 text-blue-300 border border-blue-700/50 px-2 py-0.5 rounded-full font-mono">
+                    Variable de entorno: ARCA_SERVICE_URL
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={config.serviceUrl}
                     onChange={(e) => setConfig({ ...config, serviceUrl: e.target.value })}
+                    readOnly={config.serviceUrlFromEnv}
                     placeholder="http://localhost:3001"
-                    className="flex-1 bg-gray-800 text-white font-mono border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`flex-1 text-white font-mono border rounded-xl px-4 py-3 text-sm focus:outline-none ${
+                      config.serviceUrlFromEnv
+                        ? "bg-gray-800/60 border-gray-700 text-gray-300 cursor-not-allowed"
+                        : "bg-gray-800 border-gray-700 focus:ring-2 focus:ring-blue-500"
+                    }`}
                   />
                   <button
                     type="button"
@@ -680,7 +705,9 @@ export default function AdminFacturacion() {
                   </button>
                 </div>
                 <p className="text-gray-500 text-[11px]">
-                  Puede ser la instancia local (`http://localhost:3001`) o la URL del servicio compartido de Gestion Web desplegado en Railway/Render.
+                  {config.serviceUrlFromEnv
+                    ? "La URL se obtiene dinámicamente desde la variable de entorno ARCA_SERVICE_URL configurada en el hosting (.env o Railway)."
+                    : "Configurá la variable de entorno ARCA_SERVICE_URL en tu archivo .env o en el panel de Railway/Render."}
                 </p>
 
                 {saludResultado && (

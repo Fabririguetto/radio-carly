@@ -29,11 +29,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const [rows] = await pool.query(
-    "SELECT nombre FROM clientes WHERE idcliente = ?",
+    "SELECT nombre, COALESCE(mp_enabled, 1) AS mp_enabled FROM clientes WHERE idcliente = ?",
     [idclienteNum]
   );
   const cliente = (rows as any[])[0];
   if (!cliente) return res.status(404).json({ error: "Cliente no encontrado" });
+
+  if (Number(cliente.mp_enabled) === 0) {
+    return res.status(403).json({
+      error: "Mercado Pago se encuentra deshabilitado para tu cuenta. Por favor aboná por transferencia bancaria.",
+    });
+  }
 
   const montoStr = montoNum.toFixed(2);
   const externalRef = `wox-${idcliente}-${Date.now()}`;
